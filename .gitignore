@@ -1,2 +1,6 @@
 __debug_bin**.exe
 terrable.exe
+samples/*/.terraform.lock.hcl
+samples/*/.terraform/*
+samples/**/*terraform.tfstate*
+/samples/**/*-package.zip
