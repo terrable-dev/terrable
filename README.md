@@ -11,19 +11,27 @@
 
 ---
 
+Terrable is a CLI tool that works seamlessly with its companion Terraform module to simplify building, testing
+and deploying AWS API Gateways.
+
+## Features
+
+- Easy configuration of API Gateways using Terraform
+- Local development and testing of API endpoints
+- Seamless deployment to AWS
+- TypeScript support for handler functions
+
 ## Installation
 
-Using Go
+Install Terrable using Go:
 
-```
+```bash
 go install github.com/terrable-dev/terrable@latest
 ```
 
-## Usage
+## Quick Start
 
-The terrable CLI works with a companion Terraform module, found on the Terraform Registry at https://registry.terraform.io/modules/terrable-dev/terrable-api/aws/latest.
-
-You can configure your API in Terraform as follows:
+1. Use the Terrable Terraform module in your configuration:
 
 ```terraform
 module "example_api" {
@@ -43,8 +51,8 @@ module "example_api" {
 }
 ```
 
-And then, using the terrable CLI, run this configuration locally:
+2. Run your API locally using the Terrable CLI:
 
-```
-terrable -f terraform_file.tf -m example_api
+```bash
+terrable -file terraform_file.tf -module example_api
 ```
