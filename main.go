@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 	"os"
-	"terrable/offline"
 
+	"github.com/terrable-dev/terrable/offline"
 	"github.com/urfave/cli/v2"
 )
 

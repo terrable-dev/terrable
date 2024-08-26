@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"sync"
 
-	"terrable/config"
-	"terrable/utils"
+	"github.com/terrable-dev/terrable/config"
+	"github.com/terrable-dev/terrable/utils"
 )
 
 func Run(filePath string, moduleName string) {

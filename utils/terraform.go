@@ -5,10 +5,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"terrable/config"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/terrable-dev/terrable/config"
 	"github.com/zclconf/go-cty/cty"
 )
 

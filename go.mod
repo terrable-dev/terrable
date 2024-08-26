@@ -1,4 +1,4 @@
-module terrable
+module github.com/terrable-dev/terrable
 
 go 1.22.5
 

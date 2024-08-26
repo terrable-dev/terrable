@@ -3,8 +3,9 @@ package utils
 import (
 	"os"
 	"path/filepath"
-	"terrable/config"
 	"testing"
+
+	"github.com/terrable-dev/terrable/config"
 )
 
 // Helper function to parse the test configuration

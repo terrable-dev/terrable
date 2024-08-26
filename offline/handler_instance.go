@@ -7,8 +7,7 @@ import (
 
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/fsnotify/fsnotify"
-
-	"terrable/config"
+	"github.com/terrable-dev/terrable/config"
 )
 
 type HandlerInstance struct {
