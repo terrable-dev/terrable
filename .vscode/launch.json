@@ -7,8 +7,8 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "./terrable/",
-            "args": ["offline", "-file", "../samples/simple/terraform/simple-api.tf", "-module", "simple_api"]
+            "program": "./",
+            "args": ["offline", "-file", "./samples/simple/simple-api.tf", "-module", "simple_api"]
         }
     ]
 }
