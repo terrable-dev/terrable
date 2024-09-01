@@ -9,13 +9,15 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+
+	"github.com/gorilla/mux"
 )
 
-func ServeHandler(handlerInstance *HandlerInstance) {
+func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	handlerInstance.RecompileHandler()
 	go handlerInstance.WatchForChanges()
 
-	go http.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
+	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
 		code := wrapHandlerCode(handlerInstance.handlerCode, r)
 
 		output := executeNodeCode(code)
@@ -75,7 +77,13 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 	if len(queryParams) > 0 {
 		queryParamsValue = queryParams
 	} else {
-		queryParamsValue = map[string]string{}
+		queryParamsValue = nil
+	}
+
+	vars := mux.Vars(r)
+
+	if len(vars) < 1 {
+		vars = nil
 	}
 
 	eventInput := map[string]interface{}{
@@ -84,6 +92,7 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 		"httpMethod":            r.Method,
 		"path":                  r.URL.Path,
 		"headers":               headers,
+		"pathParameters":        vars,
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
@@ -117,7 +126,7 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 }
 
 func executeNodeCode(code string) string {
-	cmd := exec.Command("node", "--inspect=9229", "-e", string(code))
+	cmd := exec.Command("node", "-e", string(code))
 
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()

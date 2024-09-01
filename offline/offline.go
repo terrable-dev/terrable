@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/gorilla/mux"
 	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/utils"
 )
@@ -24,14 +25,16 @@ func Run(filePath string, moduleName string) {
 	var wg sync.WaitGroup
 	defer wg.Done()
 
+	r := mux.NewRouter()
+
 	for _, handler := range config.Handlers {
 		go ServeHandler(&HandlerInstance{
 			handlerConfig: handler,
-		})
+		}, r)
 	}
 
 	fmt.Println("Starting server on :8080")
-	http.ListenAndServe("127.0.0.1:8080", nil)
+	http.ListenAndServe("127.0.0.1:8080", r)
 
 	wg.Add(1)
 }

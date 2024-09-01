@@ -5,6 +5,7 @@ go 1.22.5
 require (
 	github.com/evanw/esbuild v0.23.0
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/hcl/v2 v2.21.0
 	github.com/urfave/cli/v2 v2.27.3
 	github.com/zclconf/go-cty v1.15.0
