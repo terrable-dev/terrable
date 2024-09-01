@@ -1,5 +1,5 @@
 provider "aws" {
-  region              = "eu-west-1"
+  region              = "eu-west-2"
 }
 
 terraform {
@@ -8,23 +8,15 @@ terraform {
 
 module "simple_api" {
   source = "terrable-dev/terrable-api/aws"
-  version = "0.0.1"
+  version = "0.0.3"
   api_name = "simple-api"
   
   handlers = {
-    HelloWorld: {
-        source = "./src/HelloWorld.ts"
+    Echo: {
+        source = "./src/Echo.ts"
         http = {
           method = "GET"
           path = "/"
-        }
-    },
-
-    HelloPost: {
-        source = "./src/HelloPost.ts"
-        http = {
-          method = "POST"
-          path = "/hello-post"
         }
     }
   }
