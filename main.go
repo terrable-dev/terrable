@@ -20,8 +20,14 @@ func main() {
 				Action: func(cCtx *cli.Context) error {
 					filePath := cCtx.String("file")
 					moduleName := cCtx.String("module")
+					port := cCtx.String("port")
 
-					offline.Run(filePath, moduleName)
+					err := offline.Run(filePath, moduleName, port)
+
+					if err != nil {
+						return err
+					}
+
 					return nil
 				},
 				Flags: []cli.Flag{
@@ -41,7 +47,8 @@ func main() {
 						Name:     "port",
 						Aliases:  []string{"p"},
 						Required: false,
-						Usage:    "Name of the terraform module to try and run locally",
+						Value:    "8080",
+						Usage:    "The port number that the local instance of the API should listen for requests at",
 					},
 				},
 			},
