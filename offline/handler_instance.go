@@ -15,6 +15,7 @@ type HandlerInstance struct {
 	handlerCode       string
 	readCodeMutex     sync.RWMutex
 	recompileSyncLock *sync.Once
+	envVars           map[string]interface{}
 }
 
 func (handlerInstance *HandlerInstance) GetExecutionCode() string {

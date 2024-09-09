@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -12,7 +13,7 @@ import (
 )
 
 func Run(filePath string, moduleName string) {
-	config, err := utils.ParseTerraformFile(filePath, moduleName)
+	terrableConfig, err := utils.ParseTerraformFile(filePath, moduleName)
 
 	if err != nil {
 		log.Fatalf("error running offline: %s", err)
@@ -20,16 +21,23 @@ func Run(filePath string, moduleName string) {
 
 	// TODO: Validate config
 
-	printConfig(*config)
+	tomlConfig, err := config.ParseTerrableToml(filepath.Dir(filePath))
+
+	if err != nil {
+		log.Fatalf("error parsing .terrable.toml file: %w", err)
+	}
+
+	printConfig(*terrableConfig)
 
 	var wg sync.WaitGroup
 	defer wg.Done()
 
 	r := mux.NewRouter()
 
-	for _, handler := range config.Handlers {
+	for _, handler := range terrableConfig.Handlers {
 		go ServeHandler(&HandlerInstance{
 			handlerConfig: handler,
+			envVars:       tomlConfig.Environment,
 		}, r)
 	}
 

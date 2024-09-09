@@ -20,7 +20,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
 		code := wrapHandlerCode(handlerInstance.handlerCode, r)
 
-		output := executeNodeCode(code)
+		output := executeNodeCode(code, handlerInstance.envVars)
 		result, err := extractResult(output)
 
 		if err != nil {
@@ -125,8 +125,14 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 	`, eventInputJSON, handlerCode)
 }
 
-func executeNodeCode(code string) string {
+func executeNodeCode(code string, environmentVariables map[string]interface{}) string {
 	cmd := exec.Command("node", "-e", string(code))
+
+	cmd.Env = []string{}
+
+	for key, value := range environmentVariables {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%v", key, value))
+	}
 
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
