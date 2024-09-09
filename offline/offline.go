@@ -12,7 +12,7 @@ import (
 	"github.com/terrable-dev/terrable/utils"
 )
 
-func Run(filePath string, moduleName string) {
+func Run(filePath string, moduleName string, port string) error {
 	terrableConfig, err := utils.ParseTerraformFile(filePath, moduleName)
 
 	if err != nil {
@@ -41,10 +41,13 @@ func Run(filePath string, moduleName string) {
 		}, r)
 	}
 
-	fmt.Println("Starting server on :8080")
-	http.ListenAndServe("127.0.0.1:8080", r)
+	fmt.Printf("Starting server on :%s", port)
 
-	wg.Add(1)
+	if err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%s", port), r); err != nil {
+		return fmt.Errorf("could not start server on port %s. Error: %s", port, err.Error())
+	}
+
+	return nil
 }
 
 func printConfig(config config.TerrableConfig) {
