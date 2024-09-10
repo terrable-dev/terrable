@@ -14,8 +14,8 @@ import (
 )
 
 func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
-	handlerInstance.RecompileHandler()
-	go handlerInstance.WatchForChanges()
+	inputFiles := handlerInstance.CompileHandler()
+	go handlerInstance.WatchForChanges(inputFiles)
 
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
 		code := wrapHandlerCode(handlerInstance.handlerCode, r)
