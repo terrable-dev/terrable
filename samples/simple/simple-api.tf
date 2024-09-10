@@ -18,6 +18,6 @@ module "simple_api" {
           method = "GET"
           path = "/"
         }
-    }
+    },
   }
 }
