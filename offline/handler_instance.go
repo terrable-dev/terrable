@@ -38,7 +38,7 @@ func (handlerInstance *HandlerInstance) CompileHandler() (inputFilePaths []strin
 		EntryPoints: []string{handlerInstance.handlerConfig.Source},
 		Bundle:      true,
 		Write:       false,
-		Format:      api.FormatIIFE,
+		Format:      api.FormatCommonJS,
 		Target:      api.ES2015,
 		Sourcemap:   api.SourceMapInline,
 		Metafile:    true,

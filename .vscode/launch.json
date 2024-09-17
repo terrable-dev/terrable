@@ -9,6 +9,19 @@
             "mode": "auto",
             "program": "./",
             "args": ["offline", "-file", "./samples/simple/simple-api.tf", "-module", "simple_api"]
+        },
+        {
+            "name": "Attach to Node.js",
+            "type": "node",
+            "request": "attach",
+            "port": 9229,
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/**/*.js"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "remoteRoot": "${workspaceFolder}"
         }
-    ]
+         ]
 }

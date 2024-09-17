@@ -17,10 +17,22 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	inputFiles := handlerInstance.CompileHandler()
 	go handlerInstance.WatchForChanges(inputFiles)
 
+	np, err := NewNodeProcess()
+	defer np.Close()
+
+	if err != nil {
+		panic(err)
+	}
+
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
 		code := wrapHandlerCode(handlerInstance.handlerCode, r)
+		output, err := np.Execute(code)
 
-		output := executeNodeCode(code, handlerInstance.envVars)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return
+		}
+
 		result, err := extractResult(output)
 
 		if err != nil {
@@ -41,6 +53,8 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 		// Write the body
 		w.Write([]byte(result.Body))
 	})
+
+	np.cmd.Wait()
 }
 
 func wrapHandlerCode(handlerCode string, r *http.Request) string {
@@ -103,7 +117,7 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 		%s
 	
 		Promise
-			.resolve(exports.handler(eventInput))
+			.resolve(handler(eventInput))
 			.then(result => {
 				console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
 			})
