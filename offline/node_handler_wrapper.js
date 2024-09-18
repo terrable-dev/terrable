@@ -5,7 +5,6 @@ process.stdin.setEncoding('utf8');
 const context = vm.createContext({
     ...global,
     console: console,
-    process: process,
     complete: () => {
         console.log("CODE_EXECUTION_COMPLETE");
         process.stdin.resume();

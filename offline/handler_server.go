@@ -23,7 +23,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	defer np.Close()
 
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
-		code := wrapHandlerCode(handlerInstance.handlerCode, r)
+		code := wrapHandlerCode(handlerInstance.handlerCode, handlerInstance.envVars, r)
 
 		output, err := np.Execute(code)
 		if err != nil {
@@ -55,7 +55,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	np.cmd.Wait()
 }
 
-func wrapHandlerCode(handlerCode string, r *http.Request) string {
+func wrapHandlerCode(handlerCode string, environmentVariables map[string]interface{}, r *http.Request) string {
 	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
@@ -108,8 +108,12 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
+	envVarJson, _ := json.Marshal(environmentVariables)
 
 	return fmt.Sprintf(`
+		process = {};
+		process.env = %s;
+		
 	    var eventInput = %s;
 
 		%s
@@ -136,12 +140,14 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 				}) + ":TERRABLE_RESULT_END")
 				complete();
 			})
-	`, eventInputJSON, handlerCode)
+	`, envVarJson, eventInputJSON, handlerCode)
 }
 
 func extractResult(output string) (*handlerResult, error) {
 	startIndex := strings.Index(output, "TERRABLE_RESULT_START:") + len("TERRABLE_RESULT_START:")
 	endIndex := strings.Index(output, ":TERRABLE_RESULT_END")
+
+	fmt.Println(output)
 
 	var result string
 
