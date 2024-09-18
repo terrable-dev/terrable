@@ -1,4 +1,4 @@
-import { MyUtil } from "./Utils";
+import { DoPromise, MyUtil } from "./Utils";
 
 const handler = async (event) => {
     return {
@@ -7,8 +7,10 @@ const handler = async (event) => {
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
-            hello: 'world',
+            hello: await DoPromise(),
             number: MyUtil(),
+            evt: event,
+            env: process.env,
         }),
     }
 }

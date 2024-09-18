@@ -1,13 +1,10 @@
 package offline
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -18,16 +15,17 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	go handlerInstance.WatchForChanges(inputFiles)
 
 	np, err := NewNodeProcess()
-	defer np.Close()
 
 	if err != nil {
 		panic(err)
 	}
 
+	defer np.Close()
+
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
 		code := wrapHandlerCode(handlerInstance.handlerCode, r)
-		output, err := np.Execute(code)
 
+		output, err := np.Execute(code)
 		if err != nil {
 			fmt.Println("Error: ", err)
 			return
@@ -112,14 +110,15 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 	eventInputJSON, _ := json.Marshal(eventInput)
 
 	return fmt.Sprintf(`
-        var eventInput = %s;
-	
+	    var eventInput = %s;
+
 		%s
-	
+
 		Promise
 			.resolve(handler(eventInput))
 			.then(result => {
 				console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
+				complete();
 			})
 			.catch(error => {
 				console.error(error);
@@ -135,48 +134,9 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 						stackTrace: error.stack
 					})
 				}) + ":TERRABLE_RESULT_END")
+				complete();
 			})
 	`, eventInputJSON, handlerCode)
-}
-
-func executeNodeCode(code string, environmentVariables map[string]interface{}) string {
-	cmd := exec.Command("node", "-e", string(code))
-
-	cmd.Env = []string{}
-
-	for key, value := range environmentVariables {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%v", key, value))
-	}
-
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
-
-	cmd.Start()
-
-	var resultBuffer bytes.Buffer
-	var logBuffer bytes.Buffer
-
-	go processOutput(stdout, &logBuffer)
-	go processOutput(stderr, &resultBuffer)
-
-	cmd.Wait()
-
-	return logBuffer.String()
-}
-
-func processOutput(r io.Reader, buffer *bytes.Buffer) {
-	scanner := bufio.NewScanner(r)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Ignore terrable output marker
-		if !strings.HasPrefix(line, "TERRABLE_RESULT_START:") {
-			fmt.Println(line)
-		}
-
-		buffer.WriteString(line)
-	}
 }
 
 func extractResult(output string) (*handlerResult, error) {
@@ -204,6 +164,6 @@ func extractResult(output string) (*handlerResult, error) {
 
 type handlerResult struct {
 	StatusCode int               `json:"statusCode"`
-	Headers    map[string]string `json:headers`
-	Body       string            `json:body`
+	Headers    map[string]string `json:"headers"`
+	Body       string            `json:"body"`
 }

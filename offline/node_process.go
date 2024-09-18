@@ -36,7 +36,6 @@ func NewNodeProcess() (*NodeProcess, error) {
 	cmd.Env = []string{}
 
 	err = cmd.Start()
-
 	if err != nil {
 		return nil, err
 	}
