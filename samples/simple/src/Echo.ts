@@ -1,8 +1,6 @@
 import { DoPromise, MyUtil } from "./Utils";
 
 const handler = async (event) => {
-    console.log('ENV 2', process.env);
-    
     return {
         statusCode: 200,
         headers: {

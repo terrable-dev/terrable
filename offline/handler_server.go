@@ -108,20 +108,19 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
-	envVars, _ := json.Marshal(eventInput)
+	envVars, _ := json.Marshal(handler.envVars)
 
 	return fmt.Sprintf(`
+		const env = %s;
+
+		for (const envKey in env) {
+			process.env[envKey] = env[envKey];
+		}
+
 		delete require.cache[require.resolve('%s')];
-		const transpiledFunction = require('%s');
+		var transpiledFunction = require('%s');
 		
 	    var eventInput = %s;
-
-		process = {
-			env: %s,
-		};
-		
-		console.log('TPF', transpiledFunction)
-		console.log('EXP', transpiledFunction.exports)
 
 		Promise
 			.resolve(transpiledFunction.handler(eventInput))
@@ -145,7 +144,7 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 				}) + ":TERRABLE_RESULT_END")
 				complete();
 			})
-	`, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON, envVars)
+	`, envVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
 }
 
 func extractResult(output string) (*handlerResult, error) {

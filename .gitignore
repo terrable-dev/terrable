@@ -4,3 +4,4 @@ samples/*/.terraform.lock.hcl
 samples/*/.terraform/*
 samples/**/*terraform.tfstate*
 /samples/**/*-package.zip
+.terrable/
