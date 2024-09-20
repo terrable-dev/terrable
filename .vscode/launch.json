@@ -1,5 +1,4 @@
 {
-    // Launches a default 'offline' configuration
     "version": "0.2.0",
     "configurations": [
         {
@@ -11,17 +10,27 @@
             "args": ["offline", "-file", "./samples/simple/simple-api.tf", "-module", "simple_api"]
         },
         {
-            "name": "Attach to Node.js",
+            "name": "Attach Node",
             "type": "node",
             "request": "attach",
             "port": 9229,
+            "restart": true,
+            "continueOnAttach": true,
+            "address": "localhost",
+            "localRoot": "${workspaceFolder}",
+            "remoteRoot": "${workspaceFolder}",
+            "outFiles": ["${workspaceFolder}/.terrable/**/*.js"],
             "sourceMaps": true,
-            "outFiles": ["${workspaceFolder}/**/*.js"],
             "resolveSourceMapLocations": [
-                "${workspaceFolder}/**",
-                "!**/node_modules/**"
+                "${workspaceFolder}/.terrable/**/*.js.map",
             ],
-            "remoteRoot": "${workspaceFolder}"
+            "skipFiles": ["<node_internals>/**"]
+        },
+    ],
+    "compounds": [
+        {
+            "name": "Go + Node",
+            "configurations": ["Launch Package", "Attach Node"]
         }
-         ]
+    ]
 }

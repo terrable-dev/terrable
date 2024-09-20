@@ -1,5 +1,5 @@
 export function MyUtil(): number {
-    return 331;
+    return 222;
 }
 
 export async function DoPromise(): Promise<boolean> {

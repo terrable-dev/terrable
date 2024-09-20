@@ -21,7 +21,7 @@ type NodeProcess struct {
 var NODE_HANDLER_WRAPPER string
 
 func NewNodeProcess() (*NodeProcess, error) {
-	cmd := exec.Command("node", "-e", NODE_HANDLER_WRAPPER)
+	cmd := exec.Command("node", "--inspect-brk=9229", "-e", NODE_HANDLER_WRAPPER)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

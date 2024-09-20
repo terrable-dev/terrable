@@ -23,7 +23,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	defer np.Close()
 
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
-		code := wrapHandlerCode(handlerInstance.handlerCode, handlerInstance.envVars, r)
+		code := generateHandlerRuntimeCode(handlerInstance, r)
 
 		output, err := np.Execute(code)
 		if err != nil {
@@ -55,7 +55,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	np.cmd.Wait()
 }
 
-func wrapHandlerCode(handlerCode string, environmentVariables map[string]interface{}, r *http.Request) string {
+func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
 	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
@@ -108,18 +108,23 @@ func wrapHandlerCode(handlerCode string, environmentVariables map[string]interfa
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
-	envVarJson, _ := json.Marshal(environmentVariables)
+	envVars, _ := json.Marshal(eventInput)
 
 	return fmt.Sprintf(`
-		process = {};
-		process.env = %s;
+		delete require.cache[require.resolve('%s')];
+		const transpiledFunction = require('%s');
 		
 	    var eventInput = %s;
 
-		%s
+		process = {
+			env: %s,
+		};
+		
+		console.log('TPF', transpiledFunction)
+		console.log('EXP', transpiledFunction.exports)
 
 		Promise
-			.resolve(handler(eventInput))
+			.resolve(transpiledFunction.handler(eventInput))
 			.then(result => {
 				console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
 				complete();
@@ -140,7 +145,7 @@ func wrapHandlerCode(handlerCode string, environmentVariables map[string]interfa
 				}) + ":TERRABLE_RESULT_END")
 				complete();
 			})
-	`, envVarJson, eventInputJSON, handlerCode)
+	`, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON, envVars)
 }
 
 func extractResult(output string) (*handlerResult, error) {

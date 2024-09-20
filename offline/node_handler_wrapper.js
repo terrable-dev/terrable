@@ -2,14 +2,7 @@ const vm = require('vm');
 
 process.stdin.setEncoding('utf8');
 
-const context = vm.createContext({
-    ...global,
-    console: console,
-    complete: () => {
-        console.log("CODE_EXECUTION_COMPLETE");
-        process.stdin.resume();
-    }
-});
+let context = createContext();
 
 let buffer = '';
 
@@ -24,6 +17,21 @@ process.stdin.on('data', (chunk) => {
         } catch (error) {
             console.log('Error executing node process code.', error)
             context.complete();
+        } finally {
+            context = createContext();
         }
     }
 });
+
+function createContext() {
+    return vm.createContext({
+        ...global,
+        console: console,
+        require: require,
+        process: process,
+        complete: () => {
+            console.log("CODE_EXECUTION_COMPLETE");
+            process.stdin.resume();
+        },
+    })
+}
