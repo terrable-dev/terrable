@@ -3,6 +3,8 @@ package offline
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -12,37 +14,44 @@ import (
 )
 
 type HandlerInstance struct {
-	handlerConfig     config.HandlerMapping
-	handlerCode       string
-	readCodeMutex     sync.RWMutex
-	recompileSyncLock *sync.Once
-	envVars           map[string]interface{}
+	handlerConfig         config.HandlerMapping
+	handlerTranspiledPath string
+	readCodeMutex         sync.RWMutex
+	recompileSyncLock     *sync.Once
+	envVars               map[string]interface{}
 }
 
-func (handlerInstance *HandlerInstance) GetExecutionCode() string {
-	handlerInstance.readCodeMutex.RLock()
-	defer handlerInstance.readCodeMutex.RUnlock()
-
-	return handlerInstance.handlerCode
+func (handlerInstance *HandlerInstance) GetExecutionPath() string {
+	return handlerInstance.handlerTranspiledPath
 }
 
-func (handlerInstance *HandlerInstance) SetExecutionCode(code string) {
+func (handlerInstance *HandlerInstance) SetExecutionPath(path string) {
 	handlerInstance.readCodeMutex.Lock()
 	defer handlerInstance.readCodeMutex.Unlock()
 
-	handlerInstance.handlerCode = code
+	handlerInstance.handlerTranspiledPath = path
 }
 
 func (handlerInstance *HandlerInstance) CompileHandler() (inputFilePaths []string) {
+	dir, err := os.Executable()
+	if err != nil {
+		println(fmt.Errorf("error fetching executable location: %w", err))
+		return
+	}
+
+	workingDirectory := filepath.Dir(dir)
+	outDir := filepath.Join(workingDirectory, ".terrable")
+
 	result := api.Build(api.BuildOptions{
 		EntryPoints: []string{handlerInstance.handlerConfig.Source},
 		Bundle:      true,
-		Write:       false,
-		Format:      api.FormatIIFE,
+		Write:       true,
+		Format:      api.FormatCommonJS,
 		Target:      api.ES2015,
-		Sourcemap:   api.SourceMapInline,
+		Sourcemap:   api.SourceMapLinked,
 		Metafile:    true,
 		GlobalName:  "exports",
+		Outdir:      filepath.Join(workingDirectory, ".terrable"),
 	})
 
 	if len(result.Errors) > 0 {
@@ -50,7 +59,10 @@ func (handlerInstance *HandlerInstance) CompileHandler() (inputFilePaths []strin
 		return
 	}
 
-	handlerInstance.SetExecutionCode(string(result.OutputFiles[0].Contents))
+	handlerInstance.SetExecutionPath(filepath.ToSlash(filepath.Join(
+		outDir, fmt.Sprintf("%s.js", handlerInstance.handlerConfig.Name),
+	)))
+
 	return extractMetafileInputs(result.Metafile)
 }
 
@@ -60,7 +72,7 @@ func extractMetafileInputs(metafileContents string) []string {
 	err := json.Unmarshal([]byte(metafileContents), &data)
 
 	if err != nil {
-		fmt.Errorf("error parsing metafile: %w", err.Error())
+		println(fmt.Errorf("error parsing metafile: %w", err))
 		return []string{}
 	}
 

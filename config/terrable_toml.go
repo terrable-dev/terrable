@@ -28,7 +28,7 @@ func ParseTerrableToml(directory string) (*TerrableToml, error) {
 	_, err = toml.DecodeFile(filePath, &config)
 
 	if err != nil {
-		return nil, fmt.Errorf("faile to parse .terrable.toml file: %w", err)
+		return nil, fmt.Errorf("failed to parse .terrable.toml file: %w", err)
 	}
 	return &config, nil
 }

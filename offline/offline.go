@@ -24,7 +24,7 @@ func Run(filePath string, moduleName string, port string) error {
 	tomlConfig, err := config.ParseTerrableToml(filepath.Dir(filePath))
 
 	if err != nil {
-		log.Fatalf("error parsing .terrable.toml file: %w", err)
+		panic(fmt.Errorf("error parsing .terrable.toml file: %w", err))
 	}
 
 	printConfig(*terrableConfig)
@@ -41,7 +41,7 @@ func Run(filePath string, moduleName string, port string) error {
 		}, r)
 	}
 
-	fmt.Printf("Starting server on :%s", port)
+	fmt.Printf("Starting server on :%s\n", port)
 
 	if err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%s", port), r); err != nil {
 		return fmt.Errorf("could not start server on port %s. Error: %s", port, err.Error())

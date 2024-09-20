@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -17,11 +16,34 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	inputFiles := handlerInstance.CompileHandler()
 	go handlerInstance.WatchForChanges(inputFiles)
 
-	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
-		code := wrapHandlerCode(handlerInstance.handlerCode, r)
+	np, err := NewNodeProcess()
 
-		output := executeNodeCode(code, handlerInstance.envVars)
-		result, err := extractResult(output)
+	if err != nil {
+		panic(err)
+	}
+
+	defer np.Close()
+
+	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
+		code := generateHandlerRuntimeCode(handlerInstance, r)
+
+		err := np.Execute(code)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return
+		}
+
+		var stdOutBuffer bytes.Buffer
+		var stdErrBuffer bytes.Buffer
+
+		done := make(chan bool)
+
+		go processOutput(np.stdout, &stdOutBuffer, done)
+		go processOutput(np.stderr, &stdErrBuffer, nil)
+
+		<-done
+
+		result, err := extractResult(stdOutBuffer.String())
 
 		if err != nil {
 			fmt.Println(err)
@@ -41,9 +63,31 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 		// Write the body
 		w.Write([]byte(result.Body))
 	})
+
+	np.cmd.Wait()
 }
 
-func wrapHandlerCode(handlerCode string, r *http.Request) string {
+func processOutput(r io.Reader, buffer *bytes.Buffer, done chan<- bool) {
+	scanner := bufio.NewScanner(r)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		buffer.WriteString(line)
+
+		// Ignore terrable output marker
+		if !strings.HasPrefix(line, "TERRABLE_RESULT_START:") {
+			if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+				// If complete statement, signal
+				done <- true
+				return
+			} else {
+				fmt.Println(line)
+			}
+		}
+	}
+}
+
+func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
 	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
@@ -96,16 +140,25 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
+	envVars, _ := json.Marshal(handler.envVars)
 
 	return fmt.Sprintf(`
-        var eventInput = %s;
-	
-		%s
-	
+		const env = %s;
+
+		for (const envKey in env) {
+			process.env[envKey] = env[envKey];
+		}
+
+		delete require.cache[require.resolve('%s')];
+		var transpiledFunction = require('%s');
+		
+	    var eventInput = %s;
+
 		Promise
-			.resolve(exports.handler(eventInput))
+			.resolve(transpiledFunction.handler(eventInput))
 			.then(result => {
 				console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
+				complete();
 			})
 			.catch(error => {
 				console.error(error);
@@ -121,48 +174,9 @@ func wrapHandlerCode(handlerCode string, r *http.Request) string {
 						stackTrace: error.stack
 					})
 				}) + ":TERRABLE_RESULT_END")
+				complete();
 			})
-	`, eventInputJSON, handlerCode)
-}
-
-func executeNodeCode(code string, environmentVariables map[string]interface{}) string {
-	cmd := exec.Command("node", "-e", string(code))
-
-	cmd.Env = []string{}
-
-	for key, value := range environmentVariables {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%v", key, value))
-	}
-
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
-
-	cmd.Start()
-
-	var resultBuffer bytes.Buffer
-	var logBuffer bytes.Buffer
-
-	go processOutput(stdout, &logBuffer)
-	go processOutput(stderr, &resultBuffer)
-
-	cmd.Wait()
-
-	return logBuffer.String()
-}
-
-func processOutput(r io.Reader, buffer *bytes.Buffer) {
-	scanner := bufio.NewScanner(r)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Ignore terrable output marker
-		if !strings.HasPrefix(line, "TERRABLE_RESULT_START:") {
-			fmt.Println(line)
-		}
-
-		buffer.WriteString(line)
-	}
+	`, envVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
 }
 
 func extractResult(output string) (*handlerResult, error) {
@@ -190,6 +204,6 @@ func extractResult(output string) (*handlerResult, error) {
 
 type handlerResult struct {
 	StatusCode int               `json:"statusCode"`
-	Headers    map[string]string `json:headers`
-	Body       string            `json:body`
+	Headers    map[string]string `json:"headers"`
+	Body       string            `json:"body"`
 }
