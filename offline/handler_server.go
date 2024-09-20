@@ -1,6 +1,8 @@
 package offline
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,13 +27,23 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
 		code := generateHandlerRuntimeCode(handlerInstance, r)
 
-		output, err := np.Execute(code)
+		err := np.Execute(code)
 		if err != nil {
 			fmt.Println("Error: ", err)
 			return
 		}
 
-		result, err := extractResult(output)
+		var stdOutBuffer bytes.Buffer
+		var stdErrBuffer bytes.Buffer
+
+		done := make(chan bool)
+
+		go processOutput(np.stdout, &stdOutBuffer, done)
+		go processOutput(np.stderr, &stdErrBuffer, nil)
+
+		<-done
+
+		result, err := extractResult(stdOutBuffer.String())
 
 		if err != nil {
 			fmt.Println(err)
@@ -53,6 +65,26 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	})
 
 	np.cmd.Wait()
+}
+
+func processOutput(r io.Reader, buffer *bytes.Buffer, done chan<- bool) {
+	scanner := bufio.NewScanner(r)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		buffer.WriteString(line)
+
+		// Ignore terrable output marker
+		if !strings.HasPrefix(line, "TERRABLE_RESULT_START:") {
+			if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+				// If complete statement, signal
+				done <- true
+				return
+			} else {
+				fmt.Println(line)
+			}
+		}
+	}
 }
 
 func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
@@ -150,8 +182,6 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 func extractResult(output string) (*handlerResult, error) {
 	startIndex := strings.Index(output, "TERRABLE_RESULT_START:") + len("TERRABLE_RESULT_START:")
 	endIndex := strings.Index(output, ":TERRABLE_RESULT_END")
-
-	fmt.Println(output)
 
 	var result string
 

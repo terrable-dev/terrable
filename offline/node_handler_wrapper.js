@@ -15,7 +15,7 @@ process.stdin.on('data', (chunk) => {
             const script = new vm.Script(code);
             script.runInContext(context);
         } catch (error) {
-            console.log('Error executing node process code.', error)
+            console.log('Error executing node process code.', error);
             context.complete();
         } finally {
             context = createContext();
@@ -24,13 +24,20 @@ process.stdin.on('data', (chunk) => {
 });
 
 function createContext() {
+    const consoleProxy = {
+        log: console.log,
+        error: console.error,
+        warn: console.warn,
+        info: console.info,
+    };
+        
     return vm.createContext({
         ...global,
-        console: console,
+        console: consoleProxy,
         require: require,
         process: process,
         complete: () => {
-            console.log("CODE_EXECUTION_COMPLETE");
+            consoleProxy.log("CODE_EXECUTION_COMPLETE");
             process.stdin.resume();
         },
     })

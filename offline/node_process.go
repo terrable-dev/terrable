@@ -1,19 +1,17 @@
 package offline
 
 import (
-	"bufio"
 	_ "embed"
-	"fmt"
 	"io"
 	"os/exec"
-	"strings"
 	"sync"
 )
 
 type NodeProcess struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
-	stdout *bufio.Reader
+	stdout io.ReadCloser
+	stderr io.ReadCloser
 	mutex  sync.Mutex
 }
 
@@ -33,6 +31,11 @@ func NewNodeProcess() (*NodeProcess, error) {
 		return nil, err
 	}
 
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+
 	cmd.Env = []string{}
 
 	err = cmd.Start()
@@ -43,38 +46,24 @@ func NewNodeProcess() (*NodeProcess, error) {
 	return &NodeProcess{
 		cmd:    cmd,
 		stdin:  stdin,
-		stdout: bufio.NewReader(stdout),
+		stdout: stdout,
+		stderr: stderr,
 		mutex:  sync.Mutex{},
 	}, nil
 }
 
-func (np *NodeProcess) Execute(code string) (string, error) {
+func (np *NodeProcess) Execute(code string) error {
 	np.mutex.Lock()
 	defer np.mutex.Unlock()
 
 	_, err := np.stdin.Write([]byte(code + "\n"))
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	var output string
-
-	for {
-		line, err := np.stdout.ReadString('\n')
-		if err != nil {
-			return "", err
-		}
-
-		output += line
-		if strings.TrimSpace(line) == "CODE_EXECUTION_COMPLETE" {
-			break
-		}
-	}
-
-	return output, nil
+	return nil
 }
 
 func (np *NodeProcess) Close() {
-	fmt.Println("Defer np close")
 	np.cmd.Process.Kill()
 }
