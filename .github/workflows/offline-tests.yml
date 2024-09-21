@@ -1,0 +1,39 @@
+name: Offline Tests
+
+on:
+  pull_request:
+    paths:
+      - "*"
+  workflow_dispatch:
+    
+jobs:
+  hurl-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Start Terrable
+        working-directory: ./tests
+        run: |-
+          bash ./_start.sh &
+
+      - name: Wait for API to be ready
+        run: |
+          timeout 60s bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' 127.0.0.1:8080)" != "200" ]]; do sleep 2; done' || false
+      
+      - name: Install hurl
+        uses: gacts/install-hurl@v1
+
+      - name: Run Hurl tests
+        run: |
+          for file in tests/*.hurl; do
+            hurl --test "$file"
+          done
+        working-directory: ./path/to/your/tests
+
+      - name: Stop API
+        run: pkill terrable.exe
+        if: always()

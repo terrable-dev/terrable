@@ -143,7 +143,7 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 	envVars, _ := json.Marshal(handler.envVars)
 
 	return fmt.Sprintf(`
-		const env = %s;
+		var env = %s;
 
 		for (const envKey in env) {
 			process.env[envKey] = env[envKey];
