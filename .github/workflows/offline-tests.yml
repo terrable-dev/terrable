@@ -32,10 +32,10 @@ jobs:
 
       - name: Run Hurl tests
         run: |
-          for file in tests/*.hurl; do
+          for file in *.hurl; do
             hurl --test "$file"
           done
-        working-directory: ./path/to/your/tests
+        working-directory: ./tests/
 
       - name: Stop API
         run: pkill terrable.exe
