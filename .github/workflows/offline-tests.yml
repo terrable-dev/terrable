@@ -37,5 +37,5 @@ jobs:
         working-directory: ./tests/
 
       - name: Stop API
-        run: pkill terrable.exe
+        run: pkill terrable
         if: always()
