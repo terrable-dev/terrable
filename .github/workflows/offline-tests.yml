@@ -8,6 +8,7 @@ on:
     
 jobs:
   hurl-tests:
+    timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -24,8 +25,10 @@ jobs:
         run: |
           timeout 60s bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' 127.0.0.1:8080)" != "200" ]]; do sleep 2; done' || false
       
-      - name: Install hurl
-        uses: gacts/install-hurl@v1
+      - name: Install Hurl
+        run: |
+          curl -LO https://github.com/Orange-OpenSource/hurl/releases/download/1.6.1/hurl_1.6.1_amd64.deb
+          sudo dpkg -i hurl_1.6.1_amd64.deb
 
       - name: Run Hurl tests
         run: |
