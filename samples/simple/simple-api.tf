@@ -19,18 +19,11 @@ module "simple_api" {
           path = "/"
         }
     },
-    Echo: {
-        source = "./src/Echo.ts"
-        http = {
-          method = "GET"
-          path = "/"
-        }
-    },
-    Async: {
-      source = "./src/Async.ts"
+    Delayed: {
+      source = "./src/Delayed.ts"
       http = {
         method = "GET",
-        path = "/async"
+        path = "/delayed"
       }
     }
   }
