@@ -1,18 +1,21 @@
 package offline
 
 import (
+	"bufio"
 	_ "embed"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 )
 
 type NodeProcess struct {
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	stderr io.ReadCloser
-	mutex  sync.Mutex
+	cmd      *exec.Cmd
+	stdin    io.WriteCloser
+	stdout   io.ReadCloser
+	stderr   io.ReadCloser
+	mutex    sync.Mutex
+	doneChan chan (bool)
 }
 
 //go:embed node_handler_wrapper.js
@@ -44,26 +47,49 @@ func NewNodeProcess() (*NodeProcess, error) {
 	}
 
 	return &NodeProcess{
-		cmd:    cmd,
-		stdin:  stdin,
-		stdout: stdout,
-		stderr: stderr,
-		mutex:  sync.Mutex{},
+		cmd:      cmd,
+		stdin:    stdin,
+		stdout:   stdout,
+		stderr:   stderr,
+		mutex:    sync.Mutex{},
+		doneChan: make(chan bool, 1),
 	}, nil
 }
 
 func (np *NodeProcess) Execute(code string) error {
 	np.mutex.Lock()
-	defer np.mutex.Unlock()
 
 	_, err := np.stdin.Write([]byte(code + "\n"))
 	if err != nil {
 		return err
 	}
 
+	go func() {
+		scanner := bufio.NewScanner(np.stdout)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+				np.doneChan <- true
+				return
+			}
+		}
+	}()
+
+	<-np.doneChan
+	np.mutex.Unlock()
+
 	return nil
 }
 
 func (np *NodeProcess) Close() {
 	np.cmd.Process.Kill()
+}
+
+func (np *NodeProcess) watchStdout() {
+
+}
+
+func processOutput(r io.Reader) {
 }
