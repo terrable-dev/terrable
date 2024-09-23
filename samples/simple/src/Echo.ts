@@ -8,6 +8,7 @@ const handler = async (event) => {
         },
         body: JSON.stringify({
             number: MyUtil(),
+            queryString: event.queryStringParameters,
             evt: event,
             env: process.env,
         }),

@@ -24,47 +24,49 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	defer np.Close()
 
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
+		handlerInstance.executionMutex.Lock()
+		defer handlerInstance.executionMutex.Unlock()
+
 		code := generateHandlerRuntimeCode(handlerInstance, r)
 
 		go np.Execute(code)
 
-		resultChan := make(chan *struct {
-			result *handlerResult
-			err    error
-		})
+		parsedOutputChan := make(chan *struct {
+			handlerResult *handlerResult
+			err           error
+		}, 1)
 
 		go func() {
-			scanner := bufio.NewScanner(np.stdout)
+			scanner := bufio.NewReader(np.stdout)
 
-			for scanner.Scan() {
-				line := scanner.Text()
-
-				fmt.Printf("DEBUG: %s \n", line)
+			for {
+				line, _ := scanner.ReadString('\n')
 
 				if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
-					result, err := extractResult(line)
+					extractedResult, err := extractResult(line)
 
-					resultChan <- &struct {
-						result *handlerResult
-						err    error
+					parsedOutputChan <- &struct {
+						handlerResult *handlerResult
+						err           error
 					}{
-						result: result,
-						err:    err,
+						handlerResult: extractedResult,
+						err:           err,
 					}
 
 					return
 				}
 
 				if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
-					return
+					continue
 				}
-			}
 
+				fmt.Println(line)
+			}
 		}()
 
-		result := <-resultChan
+		parsed := <-parsedOutputChan
 
-		if result.err != nil {
+		if parsed.err != nil {
 			fmt.Println(err)
 			w.WriteHeader(500)
 			w.Write([]byte{})
@@ -72,15 +74,15 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 		}
 
 		// Set response headers
-		for k, header := range result.result.Headers {
+		for k, header := range parsed.handlerResult.Headers {
 			w.Header().Set(k, header)
 		}
 
 		// Write status code
-		w.WriteHeader(int(result.result.StatusCode))
+		w.WriteHeader(int(parsed.handlerResult.StatusCode))
 
 		// Write the body
-		w.Write([]byte(result.result.Body))
+		w.Write([]byte(parsed.handlerResult.Body))
 	})
 
 	np.cmd.Wait()
