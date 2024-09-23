@@ -19,5 +19,12 @@ module "simple_api" {
           path = "/"
         }
     },
+    Delayed: {
+      source = "./src/Delayed.ts"
+      http = {
+        method = "GET",
+        path = "/delayed"
+      }
+    }
   }
 }

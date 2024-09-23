@@ -2,7 +2,6 @@ package offline
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,27 +24,49 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	defer np.Close()
 
 	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
+		handlerInstance.executionMutex.Lock()
+		defer handlerInstance.executionMutex.Unlock()
+
 		code := generateHandlerRuntimeCode(handlerInstance, r)
 
-		err := np.Execute(code)
-		if err != nil {
-			fmt.Println("Error: ", err)
-			return
-		}
+		go np.Execute(code)
 
-		var stdOutBuffer bytes.Buffer
-		var stdErrBuffer bytes.Buffer
+		parsedOutputChan := make(chan *struct {
+			handlerResult *handlerResult
+			err           error
+		}, 1)
 
-		done := make(chan bool)
+		go func() {
+			scanner := bufio.NewReader(np.stdout)
 
-		go processOutput(np.stdout, &stdOutBuffer, done)
-		go processOutput(np.stderr, &stdErrBuffer, nil)
+			for {
+				line, _ := scanner.ReadString('\n')
 
-		<-done
+				if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
+					extractedResult, err := extractResult(line)
 
-		result, err := extractResult(stdOutBuffer.String())
+					parsedOutputChan <- &struct {
+						handlerResult *handlerResult
+						err           error
+					}{
+						handlerResult: extractedResult,
+						err:           err,
+					}
 
-		if err != nil {
+					return
+				}
+
+				if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+					continue
+				}
+
+				fmt.Println(line)
+			}
+		}()
+
+		parsed := <-parsedOutputChan
+
+		if parsed.err != nil {
 			fmt.Println(err)
 			w.WriteHeader(500)
 			w.Write([]byte{})
@@ -53,38 +74,18 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 		}
 
 		// Set response headers
-		for k, header := range result.Headers {
+		for k, header := range parsed.handlerResult.Headers {
 			w.Header().Set(k, header)
 		}
 
 		// Write status code
-		w.WriteHeader(int(result.StatusCode))
+		w.WriteHeader(int(parsed.handlerResult.StatusCode))
 
 		// Write the body
-		w.Write([]byte(result.Body))
+		w.Write([]byte(parsed.handlerResult.Body))
 	})
 
 	np.cmd.Wait()
-}
-
-func processOutput(r io.Reader, buffer *bytes.Buffer, done chan<- bool) {
-	scanner := bufio.NewScanner(r)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		buffer.WriteString(line)
-
-		// Ignore terrable output marker
-		if !strings.HasPrefix(line, "TERRABLE_RESULT_START:") {
-			if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
-				// If complete statement, signal
-				done <- true
-				return
-			} else {
-				fmt.Println(line)
-			}
-		}
-	}
 }
 
 func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {

@@ -18,6 +18,7 @@ type HandlerInstance struct {
 	handlerTranspiledPath string
 	readCodeMutex         sync.RWMutex
 	recompileSyncLock     *sync.Once
+	executionMutex        sync.Mutex
 	envVars               map[string]interface{}
 }
 

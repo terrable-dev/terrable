@@ -3,6 +3,7 @@ module github.com/terrable-dev/terrable
 go 1.22.5
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	github.com/evanw/esbuild v0.23.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gorilla/mux v1.8.1
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
