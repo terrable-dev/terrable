@@ -31,10 +31,15 @@ jobs:
           curl --location --remote-name https://github.com/Orange-OpenSource/hurl/releases/download/$VERSION/hurl_${VERSION}_amd64.deb
           sudo apt update && sudo apt install ./hurl_${VERSION}_amd64.deb
 
-      - name: Run Hurl tests
+      - name: Run Parallel Hurl tests
         run: |
           hurl --test --glob *.hurl
-        working-directory: ./tests/
+        working-directory: ./tests/parallel
+
+      - name: Run Sequential Hurl tests
+        run: |
+          hurl --test --glob *.hurl
+        working-directory: ./tests/serial
 
       - name: Stop API
         run: pkill terrable
