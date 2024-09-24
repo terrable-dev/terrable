@@ -23,67 +23,71 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 
 	defer np.Close()
 
-	go r.HandleFunc(handlerInstance.handlerConfig.Http.Path, func(w http.ResponseWriter, r *http.Request) {
-		handlerInstance.executionMutex.Lock()
-		defer handlerInstance.executionMutex.Unlock()
+	for method, path := range handlerInstance.handlerConfig.Http {
+		// TODO: Emulate API Gateway's 404 for missing routes / methods
 
-		code := generateHandlerRuntimeCode(handlerInstance, r)
+		go r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			handlerInstance.executionMutex.Lock()
+			defer handlerInstance.executionMutex.Unlock()
 
-		go np.Execute(code)
+			code := generateHandlerRuntimeCode(handlerInstance, r)
 
-		parsedOutputChan := make(chan *struct {
-			handlerResult *handlerResult
-			err           error
-		}, 1)
+			go np.Execute(code)
 
-		go func() {
-			scanner := bufio.NewReader(np.stdout)
+			parsedOutputChan := make(chan *struct {
+				handlerResult *handlerResult
+				err           error
+			}, 1)
 
-			for {
-				line, _ := scanner.ReadString('\n')
+			go func() {
+				scanner := bufio.NewReader(np.stdout)
 
-				if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
-					extractedResult, err := extractResult(line)
+				for {
+					line, _ := scanner.ReadString('\n')
 
-					parsedOutputChan <- &struct {
-						handlerResult *handlerResult
-						err           error
-					}{
-						handlerResult: extractedResult,
-						err:           err,
+					if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
+						extractedResult, err := extractResult(line)
+
+						parsedOutputChan <- &struct {
+							handlerResult *handlerResult
+							err           error
+						}{
+							handlerResult: extractedResult,
+							err:           err,
+						}
+
+						return
 					}
 
-					return
-				}
+					if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+						continue
+					}
 
-				if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
-					continue
+					fmt.Println(line)
 				}
+			}()
 
-				fmt.Println(line)
+			parsed := <-parsedOutputChan
+
+			if parsed.err != nil {
+				fmt.Println(err)
+				w.WriteHeader(500)
+				w.Write([]byte{})
+				return
 			}
-		}()
 
-		parsed := <-parsedOutputChan
+			// Set response headers
+			for k, header := range parsed.handlerResult.Headers {
+				w.Header().Set(k, header)
+			}
 
-		if parsed.err != nil {
-			fmt.Println(err)
-			w.WriteHeader(500)
-			w.Write([]byte{})
-			return
-		}
+			// Write status code
+			w.WriteHeader(int(parsed.handlerResult.StatusCode))
 
-		// Set response headers
-		for k, header := range parsed.handlerResult.Headers {
-			w.Header().Set(k, header)
-		}
-
-		// Write status code
-		w.WriteHeader(int(parsed.handlerResult.StatusCode))
-
-		// Write the body
-		w.Write([]byte(parsed.handlerResult.Body))
-	})
+			// Write the body
+			w.Write([]byte(parsed.handlerResult.Body))
+		}).Methods(method)
+	}
 
 	np.cmd.Wait()
 }

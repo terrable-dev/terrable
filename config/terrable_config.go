@@ -7,10 +7,5 @@ type TerrableConfig struct {
 type HandlerMapping struct {
 	Name   string
 	Source string
-	Http   HttpHandler
-}
-
-type HttpHandler struct {
-	Path   string
-	Method string
+	Http   map[string]string
 }
