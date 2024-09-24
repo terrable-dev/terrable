@@ -8,23 +8,22 @@ terraform {
 
 module "simple_api" {
   source = "terrable-dev/terrable-api/aws"
-  version = "0.0.3"
+  version = "0.0.4"
   api_name = "simple-api"
   
   handlers = {
     Echo: {
         source = "./src/Echo.ts"
         http = {
-          method = "GET"
-          path = "/"
+          GET = "/",
+          POST = "/"
         }
     },
     Delayed: {
       source = "./src/Delayed.ts"
-      http = {
-        method = "GET",
-        path = "/delayed"
-      }
+        http = {
+          GET = "/delayed",
+        }
     }
   }
 }

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -51,10 +52,17 @@ func Run(filePath string, moduleName string, port string) error {
 }
 
 func printConfig(config config.TerrableConfig) {
-	fmt.Printf("Starting terrable local server... \n")
-	fmt.Printf("%d Endpoints to prepare... \n", len(config.Handlers))
+	totalEndpoints := 0
+	printlines := []string{}
 
 	for _, handler := range config.Handlers {
-		fmt.Printf(" - %s %s \n", handler.Http.Method, handler.Http.Path)
+		for method, path := range handler.Http {
+			totalEndpoints += len(handler.Http)
+			printlines = append(printlines, fmt.Sprintf("   %-*s http://localhost:8080%s\n", 5, method, path))
+		}
 	}
+
+	fmt.Printf("Starting terrable local server... \n")
+	fmt.Printf("%d Endpoint(s) to prepare...\n", totalEndpoints)
+	fmt.Print(strings.Join(printlines, ""))
 }

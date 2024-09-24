@@ -98,14 +98,13 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 
 			source := handlerMap["source"].AsString()
 
-			var http config.HttpHandler
+			http := make(map[string]string)
 
 			if httpConfig, ok := handlerMap["http"]; ok && !httpConfig.IsNull() {
 				httpConfigMap := httpConfig.AsValueMap()
 
-				http = config.HttpHandler{
-					Path:   httpConfigMap["path"].AsString(),
-					Method: httpConfigMap["method"].AsString(),
+				for method, path := range httpConfigMap {
+					http[method] = path.AsString()
 				}
 			}
 
