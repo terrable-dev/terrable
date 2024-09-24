@@ -5,3 +5,4 @@ samples/*/.terraform/*
 samples/**/*terraform.tfstate*
 /samples/**/*-package.zip
 .terrable/
+dist/
