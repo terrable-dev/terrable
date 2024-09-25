@@ -22,15 +22,11 @@ jobs:
           distribution: goreleaser
           version: '~> v2'
           args: check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
       - name: GoReleaser dry-run
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: build --snapshot
   
