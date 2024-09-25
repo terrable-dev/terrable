@@ -9,6 +9,7 @@ jobs:
   go-releaser-release:
     timeout-minutes: 3
     runs-on: ubuntu-latest
+    permissions: write-all
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
