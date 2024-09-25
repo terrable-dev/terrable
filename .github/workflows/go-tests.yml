@@ -1,4 +1,4 @@
-name: Offline Tests
+name: Go Tests
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     
 jobs:
-  hurl-tests:
+  go-tests:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
