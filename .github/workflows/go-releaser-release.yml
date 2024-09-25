@@ -1,10 +1,9 @@
 name: GoReleaser Release
 
 on:
-  pull_request:
-    paths:
-      - "**"
-  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
     
 jobs:
   go-releaser-release:
