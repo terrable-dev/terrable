@@ -1,0 +1,22 @@
+name: Offline Tests
+
+on:
+  pull_request:
+    paths:
+      - "**"
+  workflow_dispatch:
+    
+jobs:
+  hurl-tests:
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Go Test
+        working-directory: ./
+        run: |-
+          go test
