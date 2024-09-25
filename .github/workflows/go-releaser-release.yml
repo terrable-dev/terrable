@@ -1,0 +1,26 @@
+name: GoReleaser Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+    
+jobs:
+  go-releaser-release:
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: GoReleaser release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  

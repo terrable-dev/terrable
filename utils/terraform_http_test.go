@@ -20,16 +20,14 @@ func parseTestConfig(t *testing.T) *config.TerrableConfig {
 		    HelloWorld: {
 		        source = "./src/HelloWorld.ts"
 		        http = {
-		          method = "GET"
-		          path = "/"
+					GET = "/"
 		        }
 		    },
 
 		    HelloPost: {
 		        source = "./src/HelloPost.ts"
 		        http = {
-		          method = "POST"
-		          path = "/hello-post"
+					POST = "/hello-post"
 		        }
 		    }
 		  }
@@ -106,12 +104,13 @@ func TestSourceCorrectness(t *testing.T) {
 func TestHttpConfiguration(t *testing.T) {
 	config := parseTestConfig(t)
 
-	expectedHttp := map[string]struct {
-		Method string
-		Path   string
-	}{
-		"HelloWorld": {"GET", "/"},
-		"HelloPost":  {"POST", "/hello-post"},
+	expectedHttp := map[string]map[string]string{
+		"HelloWorld": {
+			"GET": "/",
+		},
+		"HelloPost": {
+			"POST": "/hello-post",
+		},
 	}
 
 	for _, handler := range config.Handlers {
@@ -120,27 +119,11 @@ func TestHttpConfiguration(t *testing.T) {
 			t.Errorf("Unexpected handler: %s", handler.Name)
 			continue
 		}
-		if handler.Http.Method != expected.Method {
-			t.Errorf("Handler %s: expected HTTP method %s, got %s", handler.Name, expected.Method, handler.Http.Method)
-		}
-		if handler.Http.Path != expected.Path {
-			t.Errorf("Handler %s: expected HTTP path %s, got %s", handler.Name, expected.Path, handler.Http.Path)
-		}
-	}
-}
 
-func TestHandlerNames(t *testing.T) {
-	config := parseTestConfig(t)
-	expectedNames := map[string]bool{"HelloWorld": true, "HelloPost": true}
-
-	for _, handler := range config.Handlers {
-		if _, ok := expectedNames[handler.Name]; !ok {
-			t.Errorf("Unexpected handler name: %s", handler.Name)
+		for method, path := range expected {
+			if handler.Http[method] != path {
+				t.Errorf("Handler %s: expected HTTP %s path %s, got %s", handler.Name, method, path, handler.Http[method])
+			}
 		}
-		delete(expectedNames, handler.Name)
-	}
-
-	for name := range expectedNames {
-		t.Errorf("Expected handler not found: %s", name)
 	}
 }
