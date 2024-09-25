@@ -19,4 +19,4 @@ jobs:
       - name: Go Test
         working-directory: ./
         run: |-
-          go test
+          go test ./...
