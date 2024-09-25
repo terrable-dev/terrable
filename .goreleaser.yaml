@@ -37,7 +37,7 @@ changelog:
 
 scoops:
   - name: terrable
-    url_template: "http://github.mycompany.com/terrable-dev/scoop/releases/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "http://github.com/terrable-dev/scoop/releases/{{ .Tag }}/{{ .ArtifactName }}"
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com

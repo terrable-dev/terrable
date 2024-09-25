@@ -30,7 +30,7 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --snapshot --clean
+          args: build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
