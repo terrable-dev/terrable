@@ -37,17 +37,16 @@ changelog:
 
 scoops:
   - name: terrable
-    url_template: "https://github.com/terrable-dev/terrable/releases/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "https://github.com/terrable-dev/scoop/releases/{{ .Tag }}/{{ .ArtifactName }}"
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    directory: .scoop
     
     commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
     license: Unlicense
 
     repository:
       owner: terrable-dev
-      name: terrable
-      branch: main
+      name: scoop
+      branch: test
 
