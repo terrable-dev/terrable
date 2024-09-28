@@ -49,5 +49,5 @@ scoops:
     repository:
       owner: terrable-dev
       name: terrable
-      branch: test
+      branch: main
 
