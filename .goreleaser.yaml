@@ -15,7 +15,7 @@ builds:
 
 signs:
   - artifacts: checksum
-  
+
 checksum:
   name_template: "checksums.txt"
 
@@ -43,7 +43,7 @@ changelog:
 
 scoops:
   - name: terrable
-    url_template: "https://github.com/terrable-dev/terrable/releases/tag/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "https://github.com/terrable-dev/terrable/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     directory: bucket
     commit_author:
       name: goreleaserbot
