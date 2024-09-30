@@ -12,6 +12,9 @@ builds:
       - linux
       - windows
       - darwin
+      
+signs:
+  - artifacts: checksum
 
 archives:
   - format: tar.gz
