@@ -1,0 +1,31 @@
+name: Publish New Version Tag
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terrable_build'
+
+jobs:
+  update-version-and-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from file
+        id: version
+        run: |
+          VERSION=$(grep -oP 'version\s*=\s*\K[\d.]+' terrable_build)
+          echo "::set-output name=version::$VERSION"
+          
+      - name: Create and push tag
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -a v${{ steps.version.outputs.version }} -m "Version ${{ steps.version.outputs.version }}"
+          git push origin v${{ steps.version.outputs.version }}
