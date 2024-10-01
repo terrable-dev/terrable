@@ -53,7 +53,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+          
+      - name: Print directory structure
+        run: |
+          pwd
+          ls -R
+     
       - name: Start Terrable
         working-directory: ./tests
         run: |-
