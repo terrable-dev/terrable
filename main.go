@@ -3,7 +3,9 @@ package main
 import (
 	"log"
 	"os"
+	"path/filepath"
 
+	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/offline"
 	"github.com/urfave/cli/v2"
 )
@@ -11,17 +13,28 @@ import (
 func main() {
 	app := &cli.App{
 		Name:    "terrable",
-		Version: config()["version"],
+		Version: buildInfo()["version"],
 
 		Commands: []*cli.Command{
 			{
 				Name:  "offline",
 				Usage: "",
 				Action: func(cCtx *cli.Context) error {
+					executablePath, _ := os.Executable()
+					tomlConfig, _ := config.ParseTerrableToml(filepath.Dir(executablePath))
+
 					filePath := cCtx.String("file")
 					moduleName := cCtx.String("module")
-					port := cCtx.String("port")
 
+					if filePath == "" {
+						filePath = tomlConfig.Offline.File
+					}
+
+					if moduleName == "" {
+						moduleName = tomlConfig.Offline.Module
+					}
+
+					port := cCtx.String("port")
 					err := offline.Run(filePath, moduleName, port)
 
 					if err != nil {
@@ -34,13 +47,13 @@ func main() {
 					&cli.StringFlag{
 						Name:     "file",
 						Aliases:  []string{"f"},
-						Required: true,
+						Required: false,
 						Usage:    "Path to the Terraform file",
 					},
 					&cli.StringFlag{
 						Name:     "module",
 						Aliases:  []string{"m"},
-						Required: true,
+						Required: false,
 						Usage:    "Name of the terraform module to try and run locally",
 					},
 					&cli.StringFlag{

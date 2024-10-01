@@ -8,7 +8,7 @@ import (
 //go:embed terrable_build
 var configFile string
 
-func config() map[string]string {
+func buildInfo() map[string]string {
 	config := make(map[string]string)
 
 	lines := strings.Split(configFile, "\n")
