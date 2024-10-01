@@ -10,12 +10,17 @@ import (
 
 type TerrableToml struct {
 	Environment map[string]interface{} `toml:"environment"`
+	Offline     OfflineConfig          `toml:"offline"`
+}
+
+type OfflineConfig struct {
+	File   string `toml:"file"`
+	Module string `toml:"module"`
 }
 
 func ParseTerrableToml(directory string) (*TerrableToml, error) {
 	// Attempt to find a .terrable.toml file in the active directory
 	filePath := filepath.Join(directory, ".terrable.toml")
-
 	_, err := os.Stat(filePath)
 
 	if os.IsNotExist(err) {
@@ -30,5 +35,6 @@ func ParseTerrableToml(directory string) (*TerrableToml, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse .terrable.toml file: %w", err)
 	}
+
 	return &config, nil
 }
