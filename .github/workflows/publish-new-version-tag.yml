@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'terrable_build'
-  workflow_dispatch:
 
 jobs:
   update-version-and-tag:
