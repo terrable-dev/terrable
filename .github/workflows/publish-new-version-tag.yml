@@ -6,10 +6,13 @@ on:
       - main
     paths:
       - 'terrable_build'
+  workflow_dispatch:
 
 jobs:
   update-version-and-tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Check out repository
