@@ -25,7 +25,14 @@ jobs:
         run: |
           VERSION=$(grep -oP 'version\s*=\s*\K[\d.]+' terrable_build)
           echo "::set-output name=version::$VERSION"
-          
+
+      - name: Generate GitHub App token
+        id: generate_token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.ACTIONS_APP_ID }}
+          private_key: ${{ secrets.ACTIONS_APP_PRIVATE_KEY }}
+    
       - name: Create and push tag
         run: |
           git config user.name goreleaserbot
