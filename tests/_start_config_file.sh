@@ -1,3 +1,3 @@
 go build ../
-mv terrable.exe offline/simple
+mv ./terrable ./samples/simple
 ./terrable
