@@ -12,14 +12,14 @@ module "simple_api" {
   api_name = "simple-api"
   
   handlers = {
-    Echo: {
+    EchoHandler: {
         source = "./src/Echo.ts"
         http = {
           GET = "/",
           POST = "/"
         }
     },
-    Delayed: {
+    DelayedHandler: {
       source = "./src/Delayed.ts"
         http = {
           GET = "/delayed",
