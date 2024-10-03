@@ -41,7 +41,6 @@ func (handlerInstance *HandlerInstance) CompileHandler() (inputFilePaths []strin
 	}
 
 	workingDirectory := filepath.Dir(dir)
-	outDir := filepath.Join(workingDirectory, ".terrable")
 
 	result := api.Build(api.BuildOptions{
 		EntryPoints: []string{handlerInstance.handlerConfig.Source},
@@ -60,10 +59,7 @@ func (handlerInstance *HandlerInstance) CompileHandler() (inputFilePaths []strin
 		return
 	}
 
-	handlerInstance.SetExecutionPath(filepath.ToSlash(filepath.Join(
-		outDir, fmt.Sprintf("%s.js", handlerInstance.handlerConfig.Name),
-	)))
-
+	handlerInstance.SetExecutionPath(filepath.ToSlash(result.OutputFiles[1].Path))
 	return extractMetafileInputs(result.Metafile)
 }
 
