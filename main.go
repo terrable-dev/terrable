@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/offline"
@@ -20,8 +19,8 @@ func main() {
 				Name:  "offline",
 				Usage: "",
 				Action: func(cCtx *cli.Context) error {
-					executablePath, _ := os.Executable()
-					tomlConfig, _ := config.ParseTerrableToml(filepath.Dir(executablePath))
+					executablePath, _ := os.Getwd()
+					tomlConfig, _ := config.ParseTerrableToml(executablePath)
 
 					filePath := cCtx.String("file")
 					moduleName := cCtx.String("module")
