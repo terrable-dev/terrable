@@ -47,6 +47,7 @@ func (handlerInstance *HandlerInstance) CompileHandler() (inputFilePaths []strin
 		Bundle:      true,
 		Write:       true,
 		Format:      api.FormatCommonJS,
+		Platform:    api.PlatformNode,
 		Target:      api.ES2015,
 		Sourcemap:   api.SourceMapLinked,
 		Metafile:    true,
