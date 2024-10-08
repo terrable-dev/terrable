@@ -34,13 +34,12 @@ func (handlerInstance *HandlerInstance) SetExecutionPath(path string) {
 }
 
 func (handlerInstance *HandlerInstance) CompileHandler() (inputFilePaths []string) {
-	dir, err := os.Executable()
+	workingDirectory, err := os.Getwd()
+
 	if err != nil {
 		println(fmt.Errorf("error fetching executable location: %w", err))
 		return
 	}
-
-	workingDirectory := filepath.Dir(dir)
 
 	result := api.Build(api.BuildOptions{
 		EntryPoints: []string{handlerInstance.handlerConfig.Source},
