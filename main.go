@@ -59,7 +59,6 @@ func main() {
 						Name:     "port",
 						Aliases:  []string{"p"},
 						Required: false,
-						Value:    "8080",
 						Usage:    "The port number that the local instance of the API should listen for requests at",
 					},
 				},
