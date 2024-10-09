@@ -2,5 +2,6 @@
 TEST_VAR = "hello world"
 
 [offline]
-file = "simple-api.tf"
-module = "simple_api"
+file    = "simple-api.tf"
+module  = "simple_api"
+port    = "8081"

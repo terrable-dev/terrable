@@ -24,6 +24,7 @@ func main() {
 
 					filePath := cCtx.String("file")
 					moduleName := cCtx.String("module")
+					port := cCtx.String("port")
 
 					if filePath == "" {
 						filePath = tomlConfig.Offline.File
@@ -33,7 +34,10 @@ func main() {
 						moduleName = tomlConfig.Offline.Module
 					}
 
-					port := cCtx.String("port")
+					if port == "" {
+						port = tomlConfig.Offline.Port
+					}
+
 					err := offline.Run(filePath, moduleName, port)
 
 					if err != nil {

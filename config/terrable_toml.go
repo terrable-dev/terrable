@@ -16,6 +16,7 @@ type TerrableToml struct {
 type OfflineConfig struct {
 	File   string `toml:"file"`
 	Module string `toml:"module"`
+	Port   string `toml:"port"`
 }
 
 func ParseTerrableToml(directory string) (*TerrableToml, error) {
