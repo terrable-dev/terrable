@@ -9,8 +9,8 @@ import (
 )
 
 type TerrableToml struct {
-	Environment map[string]interface{} `toml:"environment"`
-	Offline     OfflineConfig          `toml:"offline"`
+	Environment map[string]string `toml:"environment"`
+	Offline     OfflineConfig     `toml:"offline"`
 }
 
 type OfflineConfig struct {

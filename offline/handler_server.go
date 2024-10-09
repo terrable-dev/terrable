@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -111,6 +112,7 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 	// Format for API Gateway behaviours
 	var bodyValue interface{}
 
+	// Set body
 	if len(body) > 0 {
 		bodyValue = string(body)
 	} else {
@@ -121,6 +123,7 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 		bodyValue = nil
 	}
 
+	// Set query string params
 	var queryParamsValue interface{}
 
 	if len(queryParams) > 0 {
@@ -129,10 +132,11 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 		queryParamsValue = nil
 	}
 
-	vars := mux.Vars(r)
+	// Set path parameters
+	pathParams := mux.Vars(r)
 
-	if len(vars) < 1 {
-		vars = nil
+	if len(pathParams) < 1 {
+		pathParams = nil
 	}
 
 	eventInput := map[string]interface{}{
@@ -141,11 +145,30 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 		"httpMethod":            r.Method,
 		"path":                  r.URL.Path,
 		"headers":               headers,
-		"pathParameters":        vars,
+		"pathParameters":        pathParams,
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
-	envVars, _ := json.Marshal(handler.envVars)
+
+	// Create a merge of handler-defined env vars
+	// and any OS env vars to be passed into the function handler
+	envVars := make(map[string]string)
+	processEnvVars := os.Environ()
+
+	for _, env := range processEnvVars {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) == 2 {
+			key := parts[0]
+			value := parts[1]
+			envVars[key] = value
+		}
+	}
+
+	for key, value := range handler.envVars {
+		envVars[key] = value
+	}
+
+	mergedEnvVars, _ := json.Marshal(envVars)
 
 	return fmt.Sprintf(`
 		const env = %s;
@@ -181,7 +204,7 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 				}) + ":TERRABLE_RESULT_END")
 				complete();
 			})
-	`, envVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
+	`, mergedEnvVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
 }
 
 func extractResult(output string) (*handlerResult, error) {
