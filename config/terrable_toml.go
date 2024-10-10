@@ -19,9 +19,11 @@ type OfflineConfig struct {
 	Port   string `toml:"port"`
 }
 
-func ParseTerrableToml(directory string) (*TerrableToml, error) {
+func ParseTerrableToml() (*TerrableToml, error) {
+	workingDir, _ := os.Getwd()
+
 	// Attempt to find a .terrable.toml file in the active directory
-	filePath := filepath.Join(directory, ".terrable.toml")
+	filePath := filepath.Join(workingDir, ".terrable.toml")
 	_, err := os.Stat(filePath)
 
 	if os.IsNotExist(err) {
