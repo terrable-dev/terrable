@@ -3,3 +3,4 @@ HTTP 200
 
 [Asserts]
 jsonpath "$.env.TEST_VAR" == "hello world"
+jsonpath "$.env.TOML_VAR" == "hello toml"
