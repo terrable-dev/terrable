@@ -24,6 +24,22 @@ module "simple_api" {
         http = {
           GET = "/delayed",
         }
+    },
+
+    # These two handlers deliberately share a source file with the same name to verify
+    # they do not collide when transpiled into a "Collision.js" file
+
+    CollisionOne: {
+      source = "./src/Collision1/Collision.ts"
+        http = {
+          GET = "/collision1",
+        }
+    },
+    CollisionTwo: {
+      source = "./src/Collision2/Collision.ts"
+        http = {
+          GET = "/collision2",
+        }
     }
   }
 }
