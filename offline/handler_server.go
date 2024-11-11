@@ -16,7 +16,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	inputFiles := handlerInstance.CompileHandler()
 	go handlerInstance.WatchForChanges(inputFiles)
 
-	np, err := NewNodeProcess()
+	np, err := GetNodeProcess()
 
 	if err != nil {
 		panic(err)

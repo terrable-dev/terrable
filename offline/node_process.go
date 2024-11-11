@@ -18,7 +18,27 @@ type NodeProcess struct {
 //go:embed node_handler_wrapper.js
 var NODE_HANDLER_WRAPPER string
 
-func NewNodeProcess() (*NodeProcess, error) {
+var (
+	nodeProcess          *NodeProcess
+	nodeProcessSyncOnce  sync.Once
+	nodeProcessInitError error
+)
+
+func GetNodeProcess() (*NodeProcess, error) {
+	nodeProcessSyncOnce.Do(func() {
+		newNodeProcess, err := initNodeProcess()
+		nodeProcessInitError = err
+		nodeProcess = newNodeProcess
+	})
+
+	if nodeProcessInitError != nil {
+		return nil, nodeProcessInitError
+	}
+
+	return nodeProcess, nil
+}
+
+func initNodeProcess() (*NodeProcess, error) {
 	cmd := exec.Command("node", "--inspect=9229", "-e", NODE_HANDLER_WRAPPER)
 
 	stdin, err := cmd.StdinPipe()
