@@ -51,7 +51,7 @@ func (handlerInstance *HandlerInstance) CompileHandler() (inputFilePaths []strin
 		Sourcemap:   api.SourceMapLinked,
 		Metafile:    true,
 		GlobalName:  "exports",
-		Outdir:      filepath.Join(workingDirectory, ".terrable"),
+		Outdir:      filepath.Join(workingDirectory, ".terrable", handlerInstance.handlerConfig.Name),
 	})
 
 	if len(result.Errors) > 0 {
