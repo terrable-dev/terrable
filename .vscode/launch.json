@@ -15,7 +15,7 @@
             "request": "attach",
             "port": 9229,
             "restart": true,
-            "continueOnAttach": true,
+            "continueOnAttach": false,
             "address": "localhost",
             "localRoot": "${workspaceFolder}",
             "remoteRoot": "${workspaceFolder}",

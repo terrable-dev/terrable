@@ -6,3 +6,4 @@ samples/**/*terraform.tfstate*
 /samples/**/*-package.zip
 .terrable/
 dist/
+__debug_bin*
