@@ -1,0 +1,15 @@
+{
+  "name": "terrable-monorepo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "terrable": "./packages/cli/dist/cli.js"
+  },
+  "keywords": [],
+  "author": "Leonardo Petrucci",
+  "license": "ISC"
+}

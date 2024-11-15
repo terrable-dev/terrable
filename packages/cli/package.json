@@ -1,0 +1,21 @@
+{
+  "name": "terrable",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "dev": "tsc-watch ./src/cli.ts --outDir ./dist"
+  },
+  "keywords": [],
+  "author": "Leonardo Petrucci",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^22.9.0",
+    "commander": "^12.1.0",
+    "ts-node": "^10.9.2",
+    "tsc-watch": "^6.2.1",
+    "typescript": "^5.6.3"
+  }
+}
