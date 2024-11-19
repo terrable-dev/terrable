@@ -38,7 +38,7 @@ function createContext() {
         process: process,
         complete: () => {
             // Cleanup process.env
-            process.env = {}
+            // process.env = {}
 
             consoleProxy.log("CODE_EXECUTION_COMPLETE");
             process.stdin.resume();
