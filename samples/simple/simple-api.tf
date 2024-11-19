@@ -27,28 +27,50 @@ module "simple_api" {
   api_name = "simple-api"
   
   global_environment_variables = {
-    TEST_ENV: {
-      value: "my-flat-var"
+    GLOBAL_VARIABLE: {
+      value: "global-variable"
     }
   }
   
   handlers = {
     EchoHandler: {
         source = "./src/Echo.ts"
+        environment_variables = {
+          ECHO_VARIABLE: {
+            value: "echo-variable"
+          }
+        }
         http = {
           GET = "/",
           POST = "/"
         }
-    }
-    TestHandler: {
-        environment_variables = {
-          LOCAL_ENV = {
-            value: "local-env"
-          }
-        }
+    },
+    EchoNoVars: {
         source = "./src/Echo.ts"
         http = {
-          GET = "/get",
+          GET = "/echo-no-vars"
+        }
+    },
+    DelayedHandler: {
+      source = "./src/Delayed.ts"
+        http = {
+          GET = "/delayed",
+        }
+    },
+
+    # These two handlers deliberately share a source file with the same name to verify
+    # they do not collide when transpiled into a "Collision.js" file
+
+    CollisionOne: {
+      source = "./src/Collision1/Collision.ts"
+        http = {
+          GET = "/collision1",
+        }
+    },
+    CollisionTwo: {
+      source = "./src/Collision2/Collision.ts"
+        http = {
+          GET = "/collision2",
         }
     }
   }
