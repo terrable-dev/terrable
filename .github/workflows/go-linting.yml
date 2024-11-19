@@ -17,12 +17,12 @@ jobs:
           fetch-depth: 0
 
       - name: Check gofmt
-      run: |
-        unformatted=$(gofmt -l .)
-        if [ -n "$unformatted" ]; then
-          echo "The following files are not formatted properly:"
-          for file in $unformatted; do
-            echo "- $file"
-          done
-          exit 1
-        fi
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not formatted properly:"
+            for file in $unformatted; do
+              echo "- $file"
+            done
+            exit 1
+          fi
