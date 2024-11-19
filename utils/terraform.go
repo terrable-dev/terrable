@@ -125,7 +125,7 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 
 func getAbsoluteHandlerSourcePath(basePath string, sourcePath string) (string, error) {
 	if filepath.IsAbs(sourcePath) {
-		return sourcePath, nil
+			return sourcePath, nil
 	}
 
 	dir := filepath.Dir(basePath)
