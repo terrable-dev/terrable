@@ -200,7 +200,7 @@ func parseEnvironmentVariables(input map[string]interface{}) map[string]string {
 func convertCtyToMap(input cty.Value) map[string]interface{} {
 	convertedMap := make(map[string]interface{})
 
-	if (input.Type().IsMapType() || input.Type().IsObjectType()) {
+	if input.Type().IsMapType() || input.Type().IsObjectType() {
 		for it := input.ElementIterator(); it.Next(); {
 			k, v := it.Element()
 			key := k.AsString()
