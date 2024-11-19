@@ -19,7 +19,6 @@ type HandlerInstance struct {
 	readCodeMutex         sync.RWMutex
 	recompileSyncLock     *sync.Once
 	executionMutex        sync.Mutex
-	envVars               map[string]string
 }
 
 func (handlerInstance *HandlerInstance) GetExecutionPath() string {

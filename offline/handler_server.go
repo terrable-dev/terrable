@@ -164,7 +164,7 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 		}
 	}
 
-	for key, value := range handler.envVars {
+	for key, value := range handler.handlerConfig.EnvironmentVariables {
 		envVars[key] = value
 	}
 

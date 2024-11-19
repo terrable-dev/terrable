@@ -22,8 +22,6 @@ func Run(filePath string, moduleName string, port string) error {
 
 	// TODO: Validate config
 
-	tomlConfig, err := config.ParseTerrableToml()
-
 	if err != nil {
 		panic(fmt.Errorf("error parsing .terrable.toml file: %w", err))
 	}
@@ -52,7 +50,6 @@ func Run(filePath string, moduleName string, port string) error {
 
 			ServeHandler(&HandlerInstance{
 				handlerConfig: handler,
-				envVars:       tomlConfig.Environment,
 			}, r)
 		}(handler)
 	}

@@ -86,8 +86,17 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 	moduleContent, _ := moduleBlock.Body.Content(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{Name: "handlers", Required: false},
+			{Name: "global_environment_variables", Required: false},
 		},
 	})
+
+	globalEnvVars := make(map[string]string)
+
+	// Reconcile global environment variables
+	if globalEnvs, ok := moduleContent.Attributes["global_environment_variables"]; ok {
+		globalEnv, _ := globalEnvs.Expr.Value(nil)
+		globalEnvVars = parseEnvironmentVariables(convertCtyToMap(globalEnv))
+	}
 
 	if handlers, ok := moduleContent.Attributes["handlers"]; ok {
 		handlersValue, _ := handlers.Expr.Value(nil)
@@ -95,6 +104,15 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 		handlersValue.ForEachElement(func(key cty.Value, value cty.Value) bool {
 			handlerName := key.AsString()
 			handlerMap := value.AsValueMap()
+
+			handlerSpecificEnvVars := make(map[string]string)
+
+			// Parse any environment variables specified for this handler
+			if handlerEnvs, ok := handlerMap["environment_variables"]; ok {
+				handlerSpecificEnvVars = parseEnvironmentVariables(convertCtyToMap(handlerEnvs))
+			}
+
+			handlerEnvVars := mergeMaps(globalEnvVars, handlerSpecificEnvVars)
 
 			source := handlerMap["source"].AsString()
 
@@ -111,9 +129,10 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 			absoluteSourceFilePath, _ := getAbsoluteHandlerSourcePath(filename, source)
 
 			terrableConfig.Handlers = append(terrableConfig.Handlers, config.HandlerMapping{
-				Name:   handlerName,
-				Source: absoluteSourceFilePath,
-				Http:   http,
+				Name:                 handlerName,
+				Source:               absoluteSourceFilePath,
+				Http:                 http,
+				EnvironmentVariables: handlerEnvVars,
 			})
 
 			return false
@@ -138,4 +157,78 @@ func getAbsoluteHandlerSourcePath(basePath string, sourcePath string) (string, e
 	}
 
 	return absolutePath, nil
+}
+
+func parseEnvironmentVariables(input map[string]interface{}) map[string]string {
+	results := make(map[string]string)
+
+	for environmentVariableKey, value := range input {
+		envMap, ok := value.(map[string]interface{})
+
+		if !ok {
+			fmt.Printf("Unexpected value type for key %s\n", environmentVariableKey)
+			continue
+		}
+
+		if ssm, ok := envMap["ssm"]; ok && ssm != nil {
+			ssmParameterName, ok := ssm.(string)
+			if !ok {
+				fmt.Printf("SSM parameter for %s is not a string\n", environmentVariableKey)
+				continue
+			}
+
+			ssmValue, err := GetSsmParameter(ssmParameterName)
+			if err != nil {
+				fmt.Printf("Error fetching SSM parameter %s: %v\n", ssmParameterName, err)
+			} else {
+				results[environmentVariableKey] = ssmValue
+			}
+		}
+
+		if val, ok := envMap["value"]; ok && val != nil {
+			if strVal, ok := val.(string); ok {
+				results[environmentVariableKey] = strVal
+			} else {
+				fmt.Printf("Value for %s is not a string\n", environmentVariableKey)
+			}
+		}
+	}
+
+	return results
+}
+
+func convertCtyToMap(input cty.Value) map[string]interface{} {
+	convertedMap := make(map[string]interface{})
+
+	if (input.Type().IsMapType() || input.Type().IsObjectType()) {
+		for it := input.ElementIterator(); it.Next(); {
+			k, v := it.Element()
+			key := k.AsString()
+			value := make(map[string]interface{})
+
+			for innerKey, innerVal := range v.AsValueMap() {
+				if !innerVal.IsNull() {
+					value[innerKey] = innerVal.AsString()
+				}
+			}
+
+			convertedMap[key] = value
+		}
+
+		return convertedMap
+	}
+
+	return nil
+}
+
+func mergeMaps[K comparable, V any](maps ...map[K]V) map[K]V {
+	result := make(map[K]V)
+
+	for _, m := range maps {
+		for k, v := range m {
+			result[k] = v
+		}
+	}
+
+	return result
 }
