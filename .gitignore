@@ -7,3 +7,4 @@ samples/**/*terraform.tfstate*
 .terrable/
 dist/
 __debug_bin*
+node_modules/
