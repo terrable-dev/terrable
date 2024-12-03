@@ -10,4 +10,5 @@ HTTP 200
 
 [Asserts]
 jsonpath "$.env.GLOBAL_ENV" == "global-env-var"
-jsonpath "$.env.ECHO_ENV" == "echo-env"
+jsonpath "$.env.ECHO_ENV" not exists
+
