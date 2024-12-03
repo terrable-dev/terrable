@@ -12,7 +12,7 @@ module "simple_api" {
   api_name = "simple-api"
 
   global_environment_variables = {
-    GLOBAL_ENV = "SSM:my-test-ssm-param"
+    GLOBAL_ENV = "global-env-var"
   }
   
   handlers = {
@@ -24,6 +24,13 @@ module "simple_api" {
         http = {
           GET = "/",
           POST = "/"
+        }
+    },
+    # Echo Handler with no local environment variables
+    EchoHandlerNoLocalEnv: {
+        source = "./src/Echo.ts"
+        http = {
+          GET = "/echo-no-env",
         }
     },
     DelayedHandler: {
