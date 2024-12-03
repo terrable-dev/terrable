@@ -1,5 +1,4 @@
 __debug_bin**.exe
-terrable.exe
 samples/*/.terraform.lock.hcl
 samples/*/.terraform/*
 samples/**/*terraform.tfstate*
@@ -7,4 +6,6 @@ samples/**/*terraform.tfstate*
 .terrable/
 dist/
 __debug_bin*
+
+terrable.exe
 terrable
