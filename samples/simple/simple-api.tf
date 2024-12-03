@@ -10,13 +10,27 @@ module "simple_api" {
   source = "terrable-dev/terrable-api/aws"
   version = "0.0.4"
   api_name = "simple-api"
+
+  global_environment_variables = {
+    GLOBAL_ENV = "global-env-var"
+  }
   
   handlers = {
     EchoHandler: {
         source = "./src/Echo.ts"
+        environment_variables = {
+          ECHO_ENV = "echo-env"
+        }
         http = {
           GET = "/",
           POST = "/"
+        }
+    },
+    # Echo Handler with no local environment variables
+    EchoHandlerNoLocalEnv: {
+        source = "./src/Echo.ts"
+        http = {
+          GET = "/echo-no-env",
         }
     },
     DelayedHandler: {

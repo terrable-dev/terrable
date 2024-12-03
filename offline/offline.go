@@ -22,8 +22,6 @@ func Run(filePath string, moduleName string, port string) error {
 
 	// TODO: Validate config
 
-	tomlConfig, err := config.ParseTerrableToml()
-
 	if err != nil {
 		panic(fmt.Errorf("error parsing .terrable.toml file: %w", err))
 	}
@@ -52,7 +50,7 @@ func Run(filePath string, moduleName string, port string) error {
 
 			ServeHandler(&HandlerInstance{
 				handlerConfig: handler,
-				envVars:       tomlConfig.Environment,
+				envVars:       mergeEnvMaps(terrableConfig.GlobalEnvironmentVariables, handler.EnvironmentVariables),
 			}, r)
 		}(handler)
 	}
@@ -108,4 +106,18 @@ func printConfig(config config.TerrableConfig, port int) {
 	fmt.Printf("Starting terrable local server... \n")
 	fmt.Printf("%d Endpoint(s) to prepare...\n", totalEndpoints)
 	fmt.Print(strings.Join(printlines, ""))
+}
+
+func mergeEnvMaps(global, local map[string]string) map[string]string {
+	merged := make(map[string]string, len(global)+len(local))
+
+	for k, v := range global {
+		merged[k] = v
+	}
+
+	for k, v := range local {
+		merged[k] = v
+	}
+
+	return merged
 }

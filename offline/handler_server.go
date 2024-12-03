@@ -8,9 +8,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/mux"
 )
+
+var handlerExecutionMutex sync.Mutex
 
 func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	inputFiles := handlerInstance.CompileHandler()
@@ -28,8 +31,8 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 		// TODO: Emulate API Gateway's 404 for missing routes / methods
 
 		go r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			handlerInstance.executionMutex.Lock()
-			defer handlerInstance.executionMutex.Unlock()
+			handlerExecutionMutex.Lock()
+			defer handlerExecutionMutex.Unlock()
 
 			code := generateHandlerRuntimeCode(handlerInstance, r)
 
@@ -172,6 +175,7 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 
 	return fmt.Sprintf(`
 		const env = %s;
+		process.env = {};
 
 		for (const envKey in env) {
 			process.env[envKey] = env[envKey];
