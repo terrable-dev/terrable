@@ -21,25 +21,20 @@ jobs:
         run: |-
           bash ./_start.sh &
 
-      - name: Wait for API to be ready
-        run: |
-          timeout 60s bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' 127.0.0.1:8081)" != "200" ]]; do sleep 2; done' || false
-      
       - name: Install Hurl
         run: |
           VERSION=5.0.1
           curl --location --remote-name https://github.com/Orange-OpenSource/hurl/releases/download/$VERSION/hurl_${VERSION}_amd64.deb
           sudo apt update && sudo apt install ./hurl_${VERSION}_amd64.deb
-
-      - name: Run Parallel Hurl tests
+      
+      - name: Wait for API to be ready
+        run: |
+          timeout 60s bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' 127.0.0.1:8081)" != "200" ]]; do sleep 2; done' || false
+  
+      - name: Run Hurl tests
         run: |
           hurl --test --glob *.hurl
-        working-directory: ./tests/parallel
-
-      - name: Run Sequential Hurl tests
-        run: |
-          hurl --test --glob *.hurl
-        working-directory: ./tests/serial
+        working-directory: ./tests/requests
 
       - name: Stop API
         run: pkill terrable
