@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -86,38 +87,60 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 	moduleContent, _ := moduleBlock.Body.Content(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{Name: "handlers", Required: false},
+			{Name: "global_environment_variables", Required: false},
 		},
 	})
 
+	// Extract global environment variables
+	if globalEnvs, ok := moduleContent.Attributes["global_environment_variables"]; ok {
+		globalEnvsValue, _ := globalEnvs.Expr.Value(nil)
+		parsedGlobalEnvs, err := parseEnvironmentVariables(globalEnvsValue)
+
+		if err != nil {
+			return nil, fmt.Errorf("error parsing global environment variables: %w", err)
+		}
+
+		terrableConfig.GlobalEnvironmentVariables = parsedGlobalEnvs
+	}
+
 	if handlers, ok := moduleContent.Attributes["handlers"]; ok {
 		handlersValue, _ := handlers.Expr.Value(nil)
+		handlerMap := handlersValue.AsValueMap()
 
-		handlersValue.ForEachElement(func(key cty.Value, value cty.Value) bool {
-			handlerName := key.AsString()
-			handlerMap := value.AsValueMap()
+		for handlerName, handlerValue := range handlerMap {
+			handlerConfig := handlerValue.AsValueMap()
 
-			source := handlerMap["source"].AsString()
+			source := handlerConfig["source"].AsString()
+
+			environmentVariables := make(map[string]string)
+			if envVars, ok := handlerConfig["environment_variables"]; ok && !envVars.IsNull() {
+				parsedEnvVars, err := parseEnvironmentVariables(envVars)
+				if err != nil {
+					return nil, fmt.Errorf("error parsing environment variables for handler %s: %w", handlerName, err)
+				}
+				environmentVariables = parsedEnvVars
+			}
 
 			http := make(map[string]string)
-
-			if httpConfig, ok := handlerMap["http"]; ok && !httpConfig.IsNull() {
+			if httpConfig, ok := handlerConfig["http"]; ok && !httpConfig.IsNull() {
 				httpConfigMap := httpConfig.AsValueMap()
-
 				for method, path := range httpConfigMap {
 					http[method] = path.AsString()
 				}
 			}
 
-			absoluteSourceFilePath, _ := getAbsoluteHandlerSourcePath(filename, source)
+			absoluteSourceFilePath, err := getAbsoluteHandlerSourcePath(filename, source)
+			if err != nil {
+				return nil, fmt.Errorf("error getting absolute source path for handler %s: %w", handlerName, err)
+			}
 
 			terrableConfig.Handlers = append(terrableConfig.Handlers, config.HandlerMapping{
-				Name:   handlerName,
-				Source: absoluteSourceFilePath,
-				Http:   http,
+				Name:                 handlerName,
+				Source:               absoluteSourceFilePath,
+				Http:                 http,
+				EnvironmentVariables: environmentVariables,
 			})
-
-			return false
-		})
+		}
 	}
 
 	return &terrableConfig, nil
@@ -138,4 +161,27 @@ func getAbsoluteHandlerSourcePath(basePath string, sourcePath string) (string, e
 	}
 
 	return absolutePath, nil
+}
+
+func parseEnvironmentVariables(envVars cty.Value) (map[string]string, error) {
+	parsedEnvVars := make(map[string]string)
+
+	if envVars.IsNull() {
+		return parsedEnvVars, nil
+	}
+
+	for k, v := range envVars.AsValueMap() {
+		value := v.AsString()
+		if strings.HasPrefix(value, "SSM:") {
+			ssmValue, err := FetchSSMParameter(strings.TrimPrefix(value, "SSM:"))
+			if err != nil {
+				return nil, fmt.Errorf("error fetching SSM parameter for env var %s: %w", k, err)
+			}
+			parsedEnvVars[k] = ssmValue
+		} else {
+			parsedEnvVars[k] = value
+		}
+	}
+
+	return parsedEnvVars, nil
 }

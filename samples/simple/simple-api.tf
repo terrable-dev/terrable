@@ -10,10 +10,17 @@ module "simple_api" {
   source = "terrable-dev/terrable-api/aws"
   version = "0.0.4"
   api_name = "simple-api"
+
+  global_environment_variables = {
+    GLOBAL_ENV = "SSM:my-test-ssm-param"
+  }
   
   handlers = {
     EchoHandler: {
         source = "./src/Echo.ts"
+        environment_variables = {
+          ECHO_ENV = "echo-env"
+        }
         http = {
           GET = "/",
           POST = "/"
