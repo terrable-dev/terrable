@@ -41,19 +41,32 @@ changelog:
       - "^.github:"
       - "^.vscode:"
 
-scoops:
+# scoops:
+#   - name: terrable
+#     url_template: "https://github.com/terrable-dev/terrable/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+#     directory: bucket
+#     commit_author:
+#       name: goreleaserbot
+#       email: bot@goreleaser.com
+    
+#     commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
+
+#     repository:
+#       owner: terrable-dev
+#       name: scoop
+#       branch: main
+
+brews:
   - name: terrable
     url_template: "https://github.com/terrable-dev/terrable/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    directory: bucket
+    directory: Formula
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    
-    commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
-    license: Unlicense
+
+    commit_msg_template: "Homebrew update for {{ .ProjectName }} version {{ .Tag }}"
 
     repository:
       owner: terrable-dev
-      name: scoop
+      name: homebrew
       branch: main
-
