@@ -68,5 +68,5 @@ brews:
 
     repository:
       owner: terrable-dev
-      name: homebrew
+      name: tap
       branch: main
