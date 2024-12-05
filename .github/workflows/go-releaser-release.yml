@@ -4,13 +4,13 @@ on:
   push:
     tags:
       - 'v*'
-      workflow_dispatch:
-        inputs:
-          skip_validate:
-            description: 'Skip Git validations'
-            required: false
-            type: boolean
-            default: false
+  workflow_dispatch:
+    inputs:
+      skip_validate:
+        description: 'Skip Git validations'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   go-releaser-release:
