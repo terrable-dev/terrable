@@ -5,11 +5,12 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
+	"os"
 	"sync"
 
 	"github.com/fatih/color"
 	"github.com/gorilla/mux"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/utils"
 )
@@ -93,42 +94,48 @@ func getListener(port string) (net.Listener, int, error) {
 
 func printConfig(config config.TerrableConfig, port int) {
 	totalEndpoints := 0
-	printlines := []string{}
+	t := table.NewWriter()
 
-	methodColors := map[string]color.Attribute{
-		"GET":     color.FgHiBlue,
-		"POST":    color.FgMagenta,
-		"PUT":     color.FgGreen,
-		"DELETE":  color.FgHiRed,
-		"PATCH":   color.FgHiYellow,
-		"OPTIONS": color.FgYellow,
-		"HEAD":    color.FgHiMagenta,
-	}
+	t.SetOutputMirror(os.Stdout)
 
 	for _, handler := range config.Handlers {
 		for method, path := range handler.Http {
-			totalEndpoints += 1
+			totalEndpoints++
+			methodColor := color.New(color.FgHiBlue).SprintFunc()
+			hostColor := color.New(color.FgHiBlack).SprintFunc()
+			pathColor := color.New(color.FgHiGreen).SprintFunc()
+			handlerNameColor := color.New(color.FgHiBlack).SprintFunc()
 
-			methodColor := color.New(methodColors[method]).SprintfFunc()
-			hostColor := color.New(color.FgHiBlack).SprintfFunc()
-			pathColor := color.New(color.FgHiGreen).SprintfFunc()
-			handlerNameColour := color.New(color.FgHiBlack).SprintfFunc()
+			url := fmt.Sprintf("%s%s",
+				hostColor(fmt.Sprintf("http://localhost:%d", port)),
+				pathColor(path))
 
-			printlines = append(printlines, fmt.Sprintf("   %s %s%s%s\n",
-				methodColor("%-7s", method),
-				hostColor("http://localhost:%d", port),
-				pathColor("%s", path),
-				handlerNameColour("(%s)", handler.Name),
-			))
+			t.AppendRow(table.Row{
+				methodColor(method),
+				url,
+				handlerNameColor(fmt.Sprintf("(%s)", handler.Name)),
+			})
 		}
 	}
 
 	color.New(color.FgHiGreen, color.Bold).Println("Starting terrable local server...")
-	color.New(color.FgHiBlue, color.Bold).Printf("%d Endpoint(s) to prepare...\n", totalEndpoints)
 
-	fmt.Print("\n" + strings.Join(printlines, "") + "\n")
+	endpointMessage := "Endpoint to prepare..."
 
-	color.New(color.FgHiGreen, color.Bold).Printf("Server started on :%d\n", port)
+	if totalEndpoints != 1 {
+		endpointMessage = "Endpoints to prepare..."
+	}
+
+	color.New(color.FgHiBlue, color.Bold).Printf("%d %s\n\n", totalEndpoints, endpointMessage)
+
+	t.SetStyle(table.StyleLight)
+	t.Style().Options.DrawBorder = false
+	t.Style().Options.SeparateColumns = false
+	t.Style().Options.SeparateHeader = false
+
+	t.Render()
+
+	color.New(color.FgHiGreen, color.Bold).Printf("\nServer started on :%d\n", port)
 }
 
 func mergeEnvMaps(global, local map[string]string) map[string]string {
