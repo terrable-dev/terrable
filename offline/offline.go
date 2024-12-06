@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fatih/color"
 	"github.com/gorilla/mux"
 	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/utils"
@@ -55,8 +56,6 @@ func Run(filePath string, moduleName string, port string) error {
 		}(handler)
 	}
 
-	fmt.Printf("Starting server on :%d\n", activePort)
-
 	server := &http.Server{
 		Handler: r,
 	}
@@ -96,16 +95,40 @@ func printConfig(config config.TerrableConfig, port int) {
 	totalEndpoints := 0
 	printlines := []string{}
 
+	methodColors := map[string]color.Attribute{
+		"GET":     color.FgHiBlue,
+		"POST":    color.FgMagenta,
+		"PUT":     color.FgGreen,
+		"DELETE":  color.FgHiRed,
+		"PATCH":   color.FgHiYellow,
+		"OPTIONS": color.FgYellow,
+		"HEAD":    color.FgHiMagenta,
+	}
+
 	for _, handler := range config.Handlers {
 		for method, path := range handler.Http {
 			totalEndpoints += 1
-			printlines = append(printlines, fmt.Sprintf("   %-*s http://localhost:%d%s\n", 5, method, port, path))
+
+			methodColor := color.New(methodColors[method]).SprintfFunc()
+			hostColor := color.New(color.FgHiBlack).SprintfFunc()
+			pathColor := color.New(color.FgHiGreen).SprintfFunc()
+			handlerNameColour := color.New(color.FgHiBlack).SprintfFunc()
+
+			printlines = append(printlines, fmt.Sprintf("   %s %s%s%s\n",
+				methodColor("%-7s", method),
+				hostColor("http://localhost:%d", port),
+				pathColor("%s", path),
+				handlerNameColour("(%s)", handler.Name),
+			))
 		}
 	}
 
-	fmt.Printf("Starting terrable local server... \n")
-	fmt.Printf("%d Endpoint(s) to prepare...\n", totalEndpoints)
-	fmt.Print(strings.Join(printlines, ""))
+	color.New(color.FgHiGreen, color.Bold).Println("Starting terrable local server...")
+	color.New(color.FgHiBlue, color.Bold).Printf("%d Endpoint(s) to prepare...\n", totalEndpoints)
+
+	fmt.Print("\n" + strings.Join(printlines, "") + "\n")
+
+	color.New(color.FgHiGreen, color.Bold).Printf("Server started on :%d\n", port)
 }
 
 func mergeEnvMaps(global, local map[string]string) map[string]string {
