@@ -2,6 +2,7 @@ package offline
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +37,9 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 			handlerExecutionMutex.Lock()
 			defer handlerExecutionMutex.Unlock()
 
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			defer cancel()
+
 			code := generateHandlerRuntimeCode(handlerInstance, r)
 
 			np.Execute(code)
@@ -53,27 +57,32 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 				scanner := bufio.NewReader(np.stdout)
 
 				for {
-					line, _ := scanner.ReadString('\n')
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						line, _ := scanner.ReadString('\n')
 
-					if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
-						extractedResult, err := extractResult(line)
+						if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
+							extractedResult, err := extractResult(line)
 
-						parsedOutputChan <- &struct {
-							handlerResult *handlerResult
-							err           error
-						}{
-							handlerResult: extractedResult,
-							err:           err,
+							parsedOutputChan <- &struct {
+								handlerResult *handlerResult
+								err           error
+							}{
+								handlerResult: extractedResult,
+								err:           err,
+							}
+
+							return
 						}
 
-						return
-					}
+						if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+							continue
+						}
 
-					if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
-						continue
+						fmt.Println(line)
 					}
-
-					fmt.Println(line)
 				}
 			}()
 
@@ -83,33 +92,45 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 				errorColour := color.New(color.FgHiRed).SprintFunc()
 
 				for {
-					line, _ := scanner.ReadString('\n')
-					fmt.Println(errorColour(line))
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						line, _ := scanner.ReadString('\n')
+						fmt.Println(errorColour(line))
+					}
 				}
 			}()
 
-			parsed := <-parsedOutputChan
+			select {
+			case parsed := <-parsedOutputChan:
+				if parsed.err != nil {
+					fmt.Println(err)
+					w.WriteHeader(500)
+					w.Write([]byte{})
+					return
+				}
 
-			if parsed.err != nil {
-				fmt.Println(err)
-				w.WriteHeader(500)
+				// Set response headers
+				for k, header := range parsed.handlerResult.Headers {
+					w.Header().Set(k, header)
+				}
+
+				// Write status code
+				w.WriteHeader(int(parsed.handlerResult.StatusCode))
+
+				// Write the body
+				w.Write([]byte(parsed.handlerResult.Body))
+				fmt.Printf("Completed in %.dms\n\n", time.Since(start).Milliseconds())
+			case <-ctx.Done():
+				// Handle timeout
+				w.WriteHeader(http.StatusGatewayTimeout)
 				w.Write([]byte{})
+
+				fmt.Printf("Request timed out\n")
+				fmt.Printf("Completed in %.dms\n\n", time.Since(start).Milliseconds())
 				return
 			}
-
-			// Set response headers
-			for k, header := range parsed.handlerResult.Headers {
-				w.Header().Set(k, header)
-			}
-
-			// Write status code
-			w.WriteHeader(int(parsed.handlerResult.StatusCode))
-
-			// Write the body
-			w.Write([]byte(parsed.handlerResult.Body))
-
-			duration := time.Since(start)
-			fmt.Printf("Completed in %.dms\n\n", duration.Milliseconds())
 		}).Methods(method)
 	}
 
