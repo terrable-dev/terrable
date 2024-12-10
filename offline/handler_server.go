@@ -31,8 +31,6 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	defer np.Close()
 
 	for method, path := range handlerInstance.handlerConfig.Http {
-		// TODO: Emulate API Gateway's 404 for missing routes / methods
-
 		go r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 			handlerExecutionMutex.Lock()
 			defer handlerExecutionMutex.Unlock()
