@@ -135,7 +135,7 @@ func printConfig(config config.TerrableConfig, port int) {
 
 	t.Render()
 
-	color.New(color.FgHiGreen, color.Bold).Printf("\nServer started on :%d\n", port)
+	color.New(color.FgHiGreen, color.Bold).Printf("\nServer started on :%d\n\n", port)
 }
 
 func mergeEnvMaps(global, local map[string]string) map[string]string {

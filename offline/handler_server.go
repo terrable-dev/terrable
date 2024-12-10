@@ -9,7 +9,9 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/fatih/color"
 	"github.com/gorilla/mux"
 )
 
@@ -36,13 +38,17 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 
 			code := generateHandlerRuntimeCode(handlerInstance, r)
 
-			go np.Execute(code)
+			np.Execute(code)
 
 			parsedOutputChan := make(chan *struct {
 				handlerResult *handlerResult
 				err           error
 			}, 1)
 
+			fmt.Printf("%s %s (%s) \n", r.Method, r.URL.Path, handlerInstance.handlerConfig.Name)
+			start := time.Now()
+
+			// stdout processing
 			go func() {
 				scanner := bufio.NewReader(np.stdout)
 
@@ -71,6 +77,17 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 				}
 			}()
 
+			// stderr processing
+			go func() {
+				scanner := bufio.NewReader(np.stderr)
+				errorColour := color.New(color.FgHiRed).SprintFunc()
+
+				for {
+					line, _ := scanner.ReadString('\n')
+					fmt.Println(errorColour(line))
+				}
+			}()
+
 			parsed := <-parsedOutputChan
 
 			if parsed.err != nil {
@@ -90,6 +107,9 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 
 			// Write the body
 			w.Write([]byte(parsed.handlerResult.Body))
+
+			duration := time.Since(start)
+			fmt.Printf("Completed in %.dms\n\n", duration.Milliseconds())
 		}).Methods(method)
 	}
 
