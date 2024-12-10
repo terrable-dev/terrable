@@ -37,7 +37,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 			handlerExecutionMutex.Lock()
 			defer handlerExecutionMutex.Unlock()
 
-			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
 			code := generateHandlerRuntimeCode(handlerInstance, r)
