@@ -43,10 +43,17 @@ func Run(filePath string, moduleName string, port string) error {
 
 	r := mux.NewRouter()
 
-	// 404 for not found
+	// Not Found handlers
 	r.MethodNotAllowedHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"message": "Not Found"}`))
+	})
+
+	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"message": "Not Found"}`))
 	})
 
 	// Start compiling and serving each handler
