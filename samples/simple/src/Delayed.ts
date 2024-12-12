@@ -1,9 +1,9 @@
-import { DoPromise, MyUtil } from "./Utils";
+import { DoPromise } from "./Utils";
 
 const handler = async (event) => {
     const before = new Date().getTime();
 
-    await DoPromise(150);
+    await DoPromise(3000);
 
     const after = new Date().getTime();
 

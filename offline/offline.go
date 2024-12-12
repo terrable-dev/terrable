@@ -5,10 +5,12 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
+	"os"
 	"sync"
 
+	"github.com/fatih/color"
 	"github.com/gorilla/mux"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/utils"
 )
@@ -41,6 +43,12 @@ func Run(filePath string, moduleName string, port string) error {
 
 	r := mux.NewRouter()
 
+	// 404 for not found
+	r.MethodNotAllowedHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+	})
+
 	// Start compiling and serving each handler
 	for _, handler := range terrableConfig.Handlers {
 		wg.Add(1)
@@ -54,8 +62,6 @@ func Run(filePath string, moduleName string, port string) error {
 			}, r)
 		}(handler)
 	}
-
-	fmt.Printf("Starting server on :%d\n", activePort)
 
 	server := &http.Server{
 		Handler: r,
@@ -94,18 +100,48 @@ func getListener(port string) (net.Listener, int, error) {
 
 func printConfig(config config.TerrableConfig, port int) {
 	totalEndpoints := 0
-	printlines := []string{}
+	t := table.NewWriter()
+
+	t.SetOutputMirror(os.Stdout)
 
 	for _, handler := range config.Handlers {
 		for method, path := range handler.Http {
-			totalEndpoints += 1
-			printlines = append(printlines, fmt.Sprintf("   %-*s http://localhost:%d%s\n", 5, method, port, path))
+			totalEndpoints++
+			methodColor := color.New(color.FgHiBlue).SprintFunc()
+			hostColor := color.New(color.FgHiBlack).SprintFunc()
+			pathColor := color.New(color.FgHiGreen).SprintFunc()
+			handlerNameColor := color.New(color.FgHiBlack).SprintFunc()
+
+			url := fmt.Sprintf("%s%s",
+				hostColor(fmt.Sprintf("http://localhost:%d", port)),
+				pathColor(path))
+
+			t.AppendRow(table.Row{
+				methodColor(method),
+				url,
+				handlerNameColor(fmt.Sprintf("(%s)", handler.Name)),
+			})
 		}
 	}
 
-	fmt.Printf("Starting terrable local server... \n")
-	fmt.Printf("%d Endpoint(s) to prepare...\n", totalEndpoints)
-	fmt.Print(strings.Join(printlines, ""))
+	color.New(color.FgHiGreen, color.Bold).Println("Starting terrable local server...")
+
+	endpointMessage := "Endpoint to prepare..."
+
+	if totalEndpoints != 1 {
+		endpointMessage = "Endpoints to prepare..."
+	}
+
+	color.New(color.FgHiBlue, color.Bold).Printf("%d %s\n\n", totalEndpoints, endpointMessage)
+
+	t.SetStyle(table.StyleLight)
+	t.Style().Options.DrawBorder = false
+	t.Style().Options.SeparateColumns = false
+	t.Style().Options.SeparateHeader = false
+
+	t.Render()
+
+	color.New(color.FgHiGreen, color.Bold).Printf("\nServer started on :%d\n\n", port)
 }
 
 func mergeEnvMaps(global, local map[string]string) map[string]string {

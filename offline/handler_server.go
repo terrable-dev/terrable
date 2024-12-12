@@ -2,6 +2,7 @@ package offline
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,7 +10,9 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/fatih/color"
 	"github.com/gorilla/mux"
 )
 
@@ -28,68 +31,104 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	defer np.Close()
 
 	for method, path := range handlerInstance.handlerConfig.Http {
-		// TODO: Emulate API Gateway's 404 for missing routes / methods
-
 		go r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 			handlerExecutionMutex.Lock()
 			defer handlerExecutionMutex.Unlock()
 
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+
 			code := generateHandlerRuntimeCode(handlerInstance, r)
 
-			go np.Execute(code)
+			np.Execute(code)
 
 			parsedOutputChan := make(chan *struct {
 				handlerResult *handlerResult
 				err           error
 			}, 1)
 
+			fmt.Printf("%s %s (%s) \n", r.Method, r.URL.Path, handlerInstance.handlerConfig.Name)
+			start := time.Now()
+
+			// stdout processing
 			go func() {
 				scanner := bufio.NewReader(np.stdout)
 
 				for {
-					line, _ := scanner.ReadString('\n')
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						line, _ := scanner.ReadString('\n')
 
-					if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
-						extractedResult, err := extractResult(line)
+						if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
+							extractedResult, err := extractResult(line)
 
-						parsedOutputChan <- &struct {
-							handlerResult *handlerResult
-							err           error
-						}{
-							handlerResult: extractedResult,
-							err:           err,
+							parsedOutputChan <- &struct {
+								handlerResult *handlerResult
+								err           error
+							}{
+								handlerResult: extractedResult,
+								err:           err,
+							}
+
+							return
 						}
 
-						return
-					}
+						if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+							continue
+						}
 
-					if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
-						continue
+						fmt.Println(line)
 					}
-
-					fmt.Println(line)
 				}
 			}()
 
-			parsed := <-parsedOutputChan
+			// stderr processing
+			go func() {
+				scanner := bufio.NewReader(np.stderr)
+				errorColour := color.New(color.FgHiRed).SprintFunc()
 
-			if parsed.err != nil {
-				fmt.Println(err)
-				w.WriteHeader(500)
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						line, _ := scanner.ReadString('\n')
+						fmt.Println(errorColour(line))
+					}
+				}
+			}()
+
+			select {
+			case parsed := <-parsedOutputChan:
+				if parsed.err != nil {
+					fmt.Println(err)
+					w.WriteHeader(500)
+					w.Write([]byte{})
+					return
+				}
+
+				// Set response headers
+				for k, header := range parsed.handlerResult.Headers {
+					w.Header().Set(k, header)
+				}
+
+				// Write status code
+				w.WriteHeader(int(parsed.handlerResult.StatusCode))
+
+				// Write the body
+				w.Write([]byte(parsed.handlerResult.Body))
+				fmt.Printf("Completed in %.dms\n\n", time.Since(start).Milliseconds())
+			case <-ctx.Done():
+				// Handle timeout
+				w.WriteHeader(http.StatusGatewayTimeout)
 				w.Write([]byte{})
+
+				fmt.Printf("Request timed out\n")
+				fmt.Printf("Completed in %.dms\n\n", time.Since(start).Milliseconds())
 				return
 			}
-
-			// Set response headers
-			for k, header := range parsed.handlerResult.Headers {
-				w.Header().Set(k, header)
-			}
-
-			// Write status code
-			w.WriteHeader(int(parsed.handlerResult.StatusCode))
-
-			// Write the body
-			w.Write([]byte(parsed.handlerResult.Body))
 		}).Methods(method)
 	}
 
