@@ -43,6 +43,12 @@ func Run(filePath string, moduleName string, port string) error {
 
 	r := mux.NewRouter()
 
+	// 404 for not found
+	r.MethodNotAllowedHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+	})
+
 	// Start compiling and serving each handler
 	for _, handler := range terrableConfig.Handlers {
 		wg.Add(1)

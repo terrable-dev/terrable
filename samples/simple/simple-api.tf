@@ -23,12 +23,7 @@ module "simple_api" {
         }
         http = {
           GET = "/",
-          POST = "/",
-          PUT = "/",
-          DELETE = "/",
-          PATCH = "/"
-          OPTIONS = "/"
-          HEAD = "/"
+          POST = "/"
         }
     },
     # Echo Handler with no local environment variables
