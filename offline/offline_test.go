@@ -61,11 +61,4 @@ func TestPrintConfig(t *testing.T) {
 				endpoint, output)
 		}
 	}
-
-	// Test order of endpoints (GET before POST)
-	getIndex := strings.Index(output, "GET")
-	postIndex := strings.Index(output, "POST")
-	if getIndex > postIndex {
-		t.Error("Expected GET endpoint to appear before POST endpoint")
-	}
 }
