@@ -212,7 +212,7 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 
 	mergedEnvVars, _ := json.Marshal(envVars)
 
-	return fmt.Sprintf(`
+	return fmt.Sprintf(`			
 		const env = %s;
 		process.env = {};
 
@@ -225,13 +225,21 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 		
 	    var eventInput = %s;
 
-		Promise
-			.resolve(transpiledFunction.handler(eventInput))
-			.then(result => {
-				console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
-				complete();
-			})
-			.catch(error => {
+		// Create a fake context object
+		const context = {
+			functionName: "local-function",
+			functionVersion: "\$LATEST",
+			invokedFunctionArn: "local:lambda",
+			memoryLimitInMB: "128",
+			awsRequestId: "local-" + Date.now(),
+			logGroupName: "local-group",
+			logStreamName: "local-stream",
+			getRemainingTimeInMillis: () => 30000,
+			callbackWaitsForEmptyEventLoop: true
+		};
+
+		const callback = (error, result) => {
+			if (error) {
 				console.error(error);
 				console.log("TERRABLE_RESULT_START:" + JSON.stringify({
 					statusCode: 500,
@@ -244,9 +252,44 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 						errorType: error.name,
 						stackTrace: error.stack
 					})
-				}) + ":TERRABLE_RESULT_END")
-				complete();
-			})
+				}) + ":TERRABLE_RESULT_END");
+			} else {
+            	console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
+        	}
+
+			complete();
+		}
+
+		// Execute the handler and handle both async and callback patterns
+		const handlerResult = transpiledFunction.handler(eventInput, context, callback);
+
+		// If the handler returns a Promise (async handler), handle it
+		if (handlerResult && typeof handlerResult.then === 'function') {
+			handlerResult
+				.then(result => {
+					if (result) { // Only handle result if it wasn't already handled by callback
+						console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
+						complete();
+					}
+				})
+				.catch(error => {
+					console.error(error);
+					console.log("TERRABLE_RESULT_START:" + JSON.stringify({
+						statusCode: 500,
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							message: "Internal server error",
+							errorMessage: error.message,
+							errorType: error.name,
+							stackTrace: error.stack
+						})
+					}) + ":TERRABLE_RESULT_END");
+
+					complete();
+				});
+		}
 	`, mergedEnvVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
 }
 
