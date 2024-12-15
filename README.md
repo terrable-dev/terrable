@@ -35,17 +35,17 @@ go install github.com/terrable-dev/terrable@latest
 
 ```terraform
 module "example_api" {
-  source = "terrable-dev/terrable-api/aws"
-  version = "0.0.4"
-  api_name = "example-api"
-  
+  source    = "terrable-dev/terrable-api/aws"
+  api_name  = "example-api"
+  runtime   = "nodejs20.x"
+
   handlers = {
     ExampleHandler: {
         source = "./ExampleHandler.ts"
         http = {
-          GET = "/example-path"
+          GET = "/"
         }
-    },
+    }
   }
 }
 ```
