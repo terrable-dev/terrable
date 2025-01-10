@@ -7,8 +7,7 @@ terraform {
 }
 
 module "simple_api" {
-  source = "terrable-dev/terrable-api/aws"
-  version = "0.0.4"
+  source = "../../../terraform-aws-terrable-api"
   api_name = "simple-api"
   
   handlers = {

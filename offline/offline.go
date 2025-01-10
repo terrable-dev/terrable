@@ -7,11 +7,33 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/Admiral-Piett/goaws/app/gosqs"
+	"github.com/Admiral-Piett/goaws/app/router"
 
 	"github.com/gorilla/mux"
 	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/utils"
 )
+
+func StartServer() {
+	quit := make(chan bool)
+
+	fmt.Println("STARTING")
+
+	r := router.New()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	defer wg.Wait()
+
+	go gosqs.PeriodicTasks(1*time.Second, quit)
+	go func() {
+		go http.ListenAndServe("0.0.0.0:4100", r)
+	}()
+}
 
 func Run(filePath string, moduleName string, port string) error {
 	terrableConfig, err := utils.ParseTerraformFile(filePath, moduleName)

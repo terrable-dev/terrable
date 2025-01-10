@@ -16,6 +16,15 @@ func main() {
 
 		Commands: []*cli.Command{
 			{
+				Name:  "sqs",
+				Usage: "",
+				Flags: []cli.Flag{},
+				Action: func(cCtx *cli.Context) error {
+					offline.StartServer()
+					return nil
+				},
+			},
+			{
 				Name:  "offline",
 				Usage: "",
 				Action: func(cCtx *cli.Context) error {
