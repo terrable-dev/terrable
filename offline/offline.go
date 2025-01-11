@@ -22,8 +22,6 @@ func Run(filePath string, moduleName string, port string) error {
 		log.Fatalf("error running offline: %s", err)
 	}
 
-	// TODO: Validate config
-
 	if err != nil {
 		panic(fmt.Errorf("error parsing .terrable.toml file: %w", err))
 	}
@@ -55,6 +53,9 @@ func Run(filePath string, moduleName string, port string) error {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(`{"message": "Not Found"}`))
 	})
+
+	// Start the SQS server
+	go startSqsServer()
 
 	// Start compiling and serving each handler
 	for _, handler := range terrableConfig.Handlers {

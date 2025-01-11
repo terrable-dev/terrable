@@ -32,6 +32,13 @@ module "simple_api" {
         }
     },
 
+    SqsHandler: {
+      source = "./src/Echo.ts"
+      sqs = {
+        queue = "example-sqs-queue"
+      }
+    }
+
     # Echo Handler configured with a callback-style instead of async / await
       EchoCallback: {
         source = "./src/EchoCallback.ts"

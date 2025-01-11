@@ -30,6 +30,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 
 	defer np.Close()
 
+	// Http Handlers
 	for method, path := range handlerInstance.handlerConfig.Http {
 		go r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 			handlerExecutionMutex.Lock()
@@ -130,6 +131,32 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 				return
 			}
 		}).Methods(method)
+	}
+
+	// SQS Handlers
+	for _, queueName := range handlerInstance.handlerConfig.Sqs {
+		addSqsQueue(queueName)
+
+		// emulate a lambda that consumes the queue
+		go func() {
+			for {
+				messages, err := getSqsMessages(queueName)
+
+				if err != nil {
+					fmt.Printf("Error getting messages: %v\n", err)
+					time.Sleep(5 * time.Second)
+					continue
+				}
+
+				for _, msg := range messages {
+					fmt.Printf("Message received from queue %s: %s", queueName, msg)
+				}
+
+				if len(messages) == 0 {
+					time.Sleep(5 * time.Second)
+				}
+			}
+		}()
 	}
 
 	np.cmd.Wait()

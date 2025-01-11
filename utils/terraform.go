@@ -129,6 +129,15 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				}
 			}
 
+			sqs := make(map[string]string)
+			if sqsConfig, ok := handlerConfig["sqs"]; ok && !sqsConfig.IsNull() {
+				sqsConfigMap := sqsConfig.AsValueMap()
+
+				for _, queueName := range sqsConfigMap {
+					sqs["queue"] = queueName.AsString()
+				}
+			}
+
 			absoluteSourceFilePath, err := getAbsoluteHandlerSourcePath(filename, source)
 			if err != nil {
 				return nil, fmt.Errorf("error getting absolute source path for handler %s: %w", handlerName, err)
@@ -138,6 +147,7 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				Name:                 handlerName,
 				Source:               absoluteSourceFilePath,
 				Http:                 http,
+				Sqs:                  sqs,
 				EnvironmentVariables: environmentVariables,
 			})
 		}
