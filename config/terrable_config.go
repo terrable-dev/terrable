@@ -9,5 +9,6 @@ type HandlerMapping struct {
 	Name                 string
 	Source               string
 	Http                 map[string]string
+	Sqs                  map[string]string
 	EnvironmentVariables map[string]string
 }
