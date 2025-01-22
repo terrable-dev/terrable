@@ -158,7 +158,7 @@ func printConfig(config config.TerrableConfig, port int) {
 			handlerNameColor := color.New(color.FgHiBlack).SprintFunc()
 
 			url := fmt.Sprintf("%s%s",
-				hostColor(fmt.Sprintf("http://localhost:%d", port)),
+				hostColor(fmt.Sprintf("http://localhost:%d/_sqs/", port)),
 				pathColor(handler.Name))
 
 			t.AppendRow(table.Row{

@@ -3,6 +3,7 @@ package offline
 import (
 	"bufio"
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -43,7 +45,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			code := generateHandlerRuntimeCode(handlerInstance, r)
+			code := generateHttpHandlerRuntimeCode(handlerInstance, r)
 
 			np.Execute(code)
 
@@ -67,7 +69,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			code := generateHandlerRuntimeCode(handlerInstance, r)
+			code := generateHttpHandlerRuntimeCode(handlerInstance, r)
 
 			np.Execute(code)
 
@@ -164,7 +166,7 @@ func processErrorStream(np *NodeProcess, ctx context.Context) {
 	}
 }
 
-func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
+func generateHttpHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
 	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
@@ -220,6 +222,133 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
+
+	// Create a merge of handler-defined env vars
+	// and any OS env vars to be passed into the function handler
+	envVars := make(map[string]string)
+	processEnvVars := os.Environ()
+
+	for _, env := range processEnvVars {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) == 2 {
+			key := parts[0]
+			value := parts[1]
+			envVars[key] = value
+		}
+	}
+
+	for key, value := range handler.envVars {
+		envVars[key] = value
+	}
+
+	mergedEnvVars, _ := json.Marshal(envVars)
+
+	return fmt.Sprintf(`			
+		const env = %s;
+		process.env = {};
+
+		for (const envKey in env) {
+			process.env[envKey] = env[envKey];
+		}
+
+		delete require.cache[require.resolve('%s')];
+		var transpiledFunction = require('%s');
+		
+	    var eventInput = %s;
+
+		// Create a fake context object
+		const context = {
+			functionName: "local-function",
+			functionVersion: "\$LATEST",
+			invokedFunctionArn: "local:lambda",
+			memoryLimitInMB: "128",
+			awsRequestId: "local-" + Date.now(),
+			logGroupName: "local-group",
+			logStreamName: "local-stream",
+			getRemainingTimeInMillis: () => 30000,
+			callbackWaitsForEmptyEventLoop: true
+		};
+
+		const callback = (error, result) => {
+			if (error) {
+				console.error(error);
+				console.log("TERRABLE_RESULT_START:" + JSON.stringify({
+					statusCode: 500,
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						message: "Internal server error",
+						errorMessage: error.message,
+						errorType: error.name,
+						stackTrace: error.stack
+					})
+				}) + ":TERRABLE_RESULT_END");
+			} else {
+            	console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
+        	}
+
+			complete();
+		}
+
+		// Execute the handler and handle both async and callback patterns
+		const handlerResult = transpiledFunction.handler(eventInput, context, callback);
+
+		// If the handler returns a Promise (async handler), handle it
+		if (handlerResult && typeof handlerResult.then === 'function') {
+			handlerResult
+				.then(result => {
+					if (result) { // Only handle result if it wasn't already handled by callback
+						console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
+						complete();
+					}
+				})
+				.catch(error => {
+					console.error(error);
+					console.log("TERRABLE_RESULT_START:" + JSON.stringify({
+						statusCode: 500,
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							message: "Internal server error",
+							errorMessage: error.message,
+							errorType: error.name,
+							stackTrace: error.stack
+						})
+					}) + ":TERRABLE_RESULT_END");
+
+					complete();
+				});
+		}
+	`, mergedEnvVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
+}
+
+func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
+	body, _ := io.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	// Create an SQS message
+	message := map[string]interface{}{
+		"messageId": uuid.New().String(),
+		"body":      string(body),
+		"attributes": map[string]interface{}{
+			"ApproximateReceiveCount":          "1",
+			"SentTimestamp":                    fmt.Sprintf("%d", time.Now().UnixNano()/1e6),
+			"SenderId":                         "SIMULATOR",
+			"ApproximateFirstReceiveTimestamp": fmt.Sprintf("%d", time.Now().UnixNano()/1e6),
+		},
+		"messageAttributes": map[string]interface{}{},
+		"md5OfBody":         fmt.Sprintf("%x", md5.Sum(body)),
+		"eventSource":       "aws:sqs",
+		"eventSourceARN":    fmt.Sprintf("arn:aws:sqs:eu-west-1:000000000000:%s", handler.handlerConfig.Name),
+		"awsRegion":         "eu-west-1",
+	}
+
+	// Create the SQS event structure
+	eventInput := map[string]interface{}{
+		"Records": []interface{}{message},
+	}
 
 	// Create a merge of handler-defined env vars
 	// and any OS env vars to be passed into the function handler
