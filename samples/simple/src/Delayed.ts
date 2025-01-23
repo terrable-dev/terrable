@@ -3,7 +3,7 @@ import { DoPromise } from "./Utils";
 const handler = async (event) => {
     const before = new Date().getTime();
 
-    await DoPromise(3000);
+    await DoPromise(2000);
 
     const after = new Date().getTime();
 

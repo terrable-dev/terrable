@@ -1,15 +1,8 @@
+import { DoPromise } from "./Utils";
+
 const handler = async (event) => {
-    return {
-        statusCode: 200,
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            queryStringParameters: event.queryStringParameters,
-            event: event,
-            env: process.env,
-        }),
-    }
+    console.log('SQS Example', event)
+    await DoPromise(1500);
 }
 
 export { handler };

@@ -145,7 +145,7 @@ func printConfig(config config.TerrableConfig, port int) {
 
 	if hasSqsQueues {
 		t.AppendRow(table.Row{
-			fmt.Sprint("\nSQS Handlers\n"),
+			"\nSQS Handlers\n",
 			"",
 			"",
 		})

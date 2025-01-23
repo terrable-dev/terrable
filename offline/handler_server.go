@@ -69,7 +69,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			code := generateHttpHandlerRuntimeCode(handlerInstance, r)
+			code := generateSqsHandlerRuntimeCode(handlerInstance, r)
 
 			np.Execute(code)
 
@@ -118,7 +118,6 @@ func sendResult(startTime time.Time, ctx context.Context, w http.ResponseWriter,
 		fmt.Printf("Completed in %.dms\n\n", time.Since(startTime).Milliseconds())
 		return
 	}
-
 }
 
 func processOutputStream(np *NodeProcess, ctx context.Context, resultChan chan<- HandlerOutput) {
@@ -269,58 +268,51 @@ func generateHttpHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) s
 			callbackWaitsForEmptyEventLoop: true
 		};
 
-		const callback = (error, result) => {
-			if (error) {
-				console.error(error);
-				console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-					statusCode: 500,
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						message: "Internal server error",
-						errorMessage: error.message,
-						errorType: error.name,
-						stackTrace: error.stack
-					})
-				}) + ":TERRABLE_RESULT_END");
+		new Promise((resolve, reject) => {
+			const callback = (error, result) => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve(result);
+				}
+			};
+
+			// Execute the handler and handle both async and callback patterns
+			const handlerResult = transpiledFunction.handler(eventInput, context, callback);
+
+			// If the handler returns a Promise (async handler), handle it
+			if (handlerResult && typeof handlerResult.then === 'function') {
+				handlerResult.then(resolve).catch(reject);
+			} else if (!handlerResult) {
+				// If handlerResult is undefined, it means the function is using callbacks
+				// or it's an async function that doesn't return anything.
+				// In this case, we don't need to do anything here, as the callback will handle it.
 			} else {
-            	console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
-        	}
-
-			complete();
-		}
-
-		// Execute the handler and handle both async and callback patterns
-		const handlerResult = transpiledFunction.handler(eventInput, context, callback);
-
-		// If the handler returns a Promise (async handler), handle it
-		if (handlerResult && typeof handlerResult.then === 'function') {
-			handlerResult
-				.then(result => {
-					if (result) { // Only handle result if it wasn't already handled by callback
-						console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
-						complete();
-					}
+				// If handlerResult is a value, resolve immediately
+				resolve(handlerResult);
+			}
+		})
+		.then(result => {
+			console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
+		})
+		.catch(error => {
+			console.error(error);
+			console.log("TERRABLE_RESULT_START:" + JSON.stringify({
+				statusCode: 500,
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					message: "Internal server error",
+					errorMessage: error.message,
+					errorType: error.name,
+					stackTrace: error.stack
 				})
-				.catch(error => {
-					console.error(error);
-					console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-						statusCode: 500,
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({
-							message: "Internal server error",
-							errorMessage: error.message,
-							errorType: error.name,
-							stackTrace: error.stack
-						})
-					}) + ":TERRABLE_RESULT_END");
-
-					complete();
-				});
-		}
+			}) + ":TERRABLE_RESULT_END");
+		})
+		.finally(() => {
+			complete();
+		});
 	`, mergedEnvVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
 }
 
@@ -349,6 +341,8 @@ func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) st
 	eventInput := map[string]interface{}{
 		"Records": []interface{}{message},
 	}
+
+	eventInputJSON, _ := json.Marshal(eventInput)
 
 	// Create a merge of handler-defined env vars
 	// and any OS env vars to be passed into the function handler
@@ -396,58 +390,53 @@ func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) st
 			callbackWaitsForEmptyEventLoop: true
 		};
 
-		const callback = (error, result) => {
-			if (error) {
-				console.error(error);
-				console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-					statusCode: 500,
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						message: "Internal server error",
-						errorMessage: error.message,
-						errorType: error.name,
-						stackTrace: error.stack
-					})
-				}) + ":TERRABLE_RESULT_END");
+		new Promise((resolve, reject) => {
+			const callback = (error, result) => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve(result);
+				}
+			};
+
+			// Execute the handler and handle both async and callback patterns
+			const handlerResult = transpiledFunction.handler(eventInput, context, callback);
+
+			// If the handler returns a Promise (async handler), handle it
+			if (handlerResult && typeof handlerResult.then === 'function') {
+				handlerResult.then(resolve).catch(reject);
+			} else if (!handlerResult) {
+				// If handlerResult is undefined, it means the function is using callbacks
+				// or it's an async function that doesn't return anything.
+				// In this case, we don't need to do anything here, as the callback will handle it.
 			} else {
-            	console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
-        	}
-
-			complete();
-		}
-
-		// Execute the handler and handle both async and callback patterns
-		const handlerResult = transpiledFunction.handler(eventInput, context, callback);
-
-		// If the handler returns a Promise (async handler), handle it
-		if (handlerResult && typeof handlerResult.then === 'function') {
-			handlerResult
-				.then(result => {
-					if (result) { // Only handle result if it wasn't already handled by callback
-						console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
-						complete();
-					}
+				// If handlerResult is a value, resolve immediately
+				resolve(handlerResult);
+			}
+		})
+		.then(result => {
+			console.log("TERRABLE_RESULT_START:" + JSON.stringify({ 
+				statusCode: 200, 
+			}) + ":TERRABLE_RESULT_END");
+		})
+		.catch(error => {
+			console.error(error);
+			console.log("TERRABLE_RESULT_START:" + JSON.stringify({
+				statusCode: 500,
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					message: "Internal server error",
+					errorMessage: error.message,
+					errorType: error.name,
+					stackTrace: error.stack
 				})
-				.catch(error => {
-					console.error(error);
-					console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-						statusCode: 500,
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({
-							message: "Internal server error",
-							errorMessage: error.message,
-							errorType: error.name,
-							stackTrace: error.stack
-						})
-					}) + ":TERRABLE_RESULT_END");
-
-					complete();
-				});
-		}
+			}) + ":TERRABLE_RESULT_END");
+		})
+		.finally(() => {
+			complete();
+		});
 	`, mergedEnvVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
 }
 
