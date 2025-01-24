@@ -415,9 +415,7 @@ func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) st
 			}
 		})
 		.then(result => {
-			console.log("TERRABLE_RESULT_START:" + JSON.stringify({ 
-				statusCode: 200, 
-			}) + ":TERRABLE_RESULT_END");
+			console.log("TERRABLE_RESULT_START:" + JSON.stringify({ statusCode: 200, ...result }) + ":TERRABLE_RESULT_END");
 		})
 		.catch(error => {
 			console.error(error);
