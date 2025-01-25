@@ -25,7 +25,14 @@ func TestPrintConfig(t *testing.T) {
 				Name:   "Handler2",
 				Source: "source2",
 				Http: map[string]string{
-					"GET": "/path2",
+					"GET": "path2",
+				},
+			},
+			{
+				Name:   "SqsHandler",
+				Source: "source3",
+				Sqs: map[string]string{
+					"queue": "arn:aws:sqs:region:account:queue",
 				},
 			},
 		},
@@ -50,11 +57,13 @@ func TestPrintConfig(t *testing.T) {
 
 	// Test for minimal required content without formatting
 	expectedEndpoints := []string{
-		"GET   http://localhost:1234/path1  (Handler1)",
-		"POST  http://localhost:1234/path1  (Handler1)",
-		"GET   http://localhost:1234/path2  (Handler2)",
+		"GET           http://localhost:1234/path1            (Handler1) ",
+		"POST          http://localhost:1234/path1            (Handler1) ",
+		"GET           http://localhost:1234path2             (Handler2) ",
+		"POST          http://localhost:1234/_sqs/SqsHandler  (SqsHandler)",
 	}
 
+	// Verify HTTP endpoints
 	for _, endpoint := range expectedEndpoints {
 		if !strings.Contains(output, strings.TrimSpace(endpoint)) {
 			t.Errorf("Expected output to contain endpoint '%s', but it doesn't.\nActual output:\n%s",

@@ -28,15 +28,17 @@ module "simple_api" {
         }
         http = {
           GET = "/",
-          POST = "/"
+          POST = "/",
+          PUT = "",
         }
     },
 
     # Echo Handler configured with a callback-style instead of async / await
-      EchoCallback: {
+    EchoCallback: {
         source = "./src/EchoCallback.ts"
         http = {
           GET = "/echo-callback"
+          PUT = "echo-callback"
         }
     },
 

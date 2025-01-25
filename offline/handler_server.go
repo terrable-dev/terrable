@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/terrable-dev/terrable/utils"
+
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -38,7 +40,7 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	defer np.Close()
 
 	for method, path := range handlerInstance.handlerConfig.Http {
-		go r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		go r.HandleFunc(utils.NormalisePath(path), func(w http.ResponseWriter, r *http.Request) {
 			handlerExecutionMutex.Lock()
 			defer handlerExecutionMutex.Unlock()
 
