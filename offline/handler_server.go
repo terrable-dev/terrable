@@ -221,9 +221,11 @@ func generateHttpHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) s
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
+	envVars := generateEnvVars(handler)
+	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON))
+}
 
-	// Create a merge of handler-defined env vars
-	// and any OS env vars to be passed into the function handler
+func generateEnvVars(handler *HandlerInstance) string {
 	envVars := make(map[string]string)
 	processEnvVars := os.Environ()
 
@@ -241,79 +243,7 @@ func generateHttpHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) s
 	}
 
 	mergedEnvVars, _ := json.Marshal(envVars)
-
-	return fmt.Sprintf(`			
-		const env = %s;
-		process.env = {};
-
-		for (const envKey in env) {
-			process.env[envKey] = env[envKey];
-		}
-
-		delete require.cache[require.resolve('%s')];
-		var transpiledFunction = require('%s');
-		
-	    var eventInput = %s;
-
-		// Create a fake context object
-		const context = {
-			functionName: "local-function",
-			functionVersion: "\$LATEST",
-			invokedFunctionArn: "local:lambda",
-			memoryLimitInMB: "128",
-			awsRequestId: "local-" + Date.now(),
-			logGroupName: "local-group",
-			logStreamName: "local-stream",
-			getRemainingTimeInMillis: () => 30000,
-			callbackWaitsForEmptyEventLoop: true
-		};
-
-		new Promise((resolve, reject) => {
-			const callback = (error, result) => {
-				if (error) {
-					reject(error);
-				} else {
-					resolve(result);
-				}
-			};
-
-			// Execute the handler and handle both async and callback patterns
-			const handlerResult = transpiledFunction.handler(eventInput, context, callback);
-
-			// If the handler returns a Promise (async handler), handle it
-			if (handlerResult && typeof handlerResult.then === 'function') {
-				handlerResult.then(resolve).catch(reject);
-			} else if (!handlerResult) {
-				// If handlerResult is undefined, it means the function is using callbacks
-				// or it's an async function that doesn't return anything.
-				// In this case, we don't need to do anything here, as the callback will handle it.
-			} else {
-				// If handlerResult is a value, resolve immediately
-				resolve(handlerResult);
-			}
-		})
-		.then(result => {
-			console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
-		})
-		.catch(error => {
-			console.error(error);
-			console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-				statusCode: 500,
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					message: "Internal server error",
-					errorMessage: error.message,
-					errorType: error.name,
-					stackTrace: error.stack
-				})
-			}) + ":TERRABLE_RESULT_END");
-		})
-		.finally(() => {
-			complete();
-		});
-	`, mergedEnvVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
+	return string(mergedEnvVars)
 }
 
 func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
@@ -343,42 +273,26 @@ func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) st
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
+	envVars := generateEnvVars(handler)
+	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON))
+}
 
-	// Create a merge of handler-defined env vars
-	// and any OS env vars to be passed into the function handler
-	envVars := make(map[string]string)
-	processEnvVars := os.Environ()
+func generateJSCode(envVars, executionPath, eventInputJSON string) string {
+	return fmt.Sprintf(`
+        const env = %s;
+        process.env = {};
 
-	for _, env := range processEnvVars {
-		parts := strings.SplitN(env, "=", 2)
-		if len(parts) == 2 {
-			key := parts[0]
-			value := parts[1]
-			envVars[key] = value
-		}
-	}
+        for (const envKey in env) {
+            process.env[envKey] = env[envKey];
+        }
 
-	for key, value := range handler.envVars {
-		envVars[key] = value
-	}
+        delete require.cache[require.resolve('%s')];
+        var transpiledFunction = require('%s');
+        
+        var eventInput = %s;
 
-	mergedEnvVars, _ := json.Marshal(envVars)
-
-	return fmt.Sprintf(`			
-		const env = %s;
-		process.env = {};
-
-		for (const envKey in env) {
-			process.env[envKey] = env[envKey];
-		}
-
-		delete require.cache[require.resolve('%s')];
-		var transpiledFunction = require('%s');
-		
-	    var eventInput = %s;
-
-		// Create a fake context object
-		const context = {
+        // Create a fake context object
+        const context = {
 			functionName: "local-function",
 			functionVersion: "\$LATEST",
 			invokedFunctionArn: "local:lambda",
@@ -388,54 +302,49 @@ func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) st
 			logStreamName: "local-stream",
 			getRemainingTimeInMillis: () => 30000,
 			callbackWaitsForEmptyEventLoop: true
-		};
+    	};
 
-		new Promise((resolve, reject) => {
-			const callback = (error, result) => {
-				if (error) {
-					reject(error);
-				} else {
-					resolve(result);
-				}
-			};
+        new Promise((resolve, reject) => {
+            const callback = (error, result) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
+            };
 
-			// Execute the handler and handle both async and callback patterns
-			const handlerResult = transpiledFunction.handler(eventInput, context, callback);
+            const handlerResult = transpiledFunction.handler(eventInput, context, callback);
 
-			// If the handler returns a Promise (async handler), handle it
-			if (handlerResult && typeof handlerResult.then === 'function') {
-				handlerResult.then(resolve).catch(reject);
-			} else if (!handlerResult) {
-				// If handlerResult is undefined, it means the function is using callbacks
-				// or it's an async function that doesn't return anything.
-				// In this case, we don't need to do anything here, as the callback will handle it.
-			} else {
-				// If handlerResult is a value, resolve immediately
-				resolve(handlerResult);
-			}
-		})
-		.then(result => {
+            if (handlerResult && typeof handlerResult.then === 'function') {
+                handlerResult.then(resolve).catch(reject);
+            } else if (!handlerResult) {
+                // If handlerResult is undefined, it means the function is using callbacks
+            } else {
+                resolve(handlerResult);
+            }
+        })
+        .then(result => {
 			console.log("TERRABLE_RESULT_START:" + JSON.stringify({ statusCode: 200, ...result }) + ":TERRABLE_RESULT_END");
-		})
-		.catch(error => {
-			console.error(error);
-			console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-				statusCode: 500,
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					message: "Internal server error",
-					errorMessage: error.message,
-					errorType: error.name,
-					stackTrace: error.stack
-				})
-			}) + ":TERRABLE_RESULT_END");
-		})
-		.finally(() => {
-			complete();
-		});
-	`, mergedEnvVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
+        })
+        .catch(error => {
+            console.error(error);
+            console.log("TERRABLE_RESULT_START:" + JSON.stringify({
+                statusCode: 500,
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    message: "Internal server error",
+                    errorMessage: error.message,
+                    errorType: error.name,
+                    stackTrace: error.stack
+                })
+            }) + ":TERRABLE_RESULT_END");
+        })
+        .finally(() => {
+            complete();
+        });
+    `, envVars, executionPath, executionPath, eventInputJSON)
 }
 
 func extractResult(output string) (*handlerResult, error) {
