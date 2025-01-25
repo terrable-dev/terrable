@@ -133,7 +133,7 @@ func printConfig(config config.TerrableConfig, port int) {
 
 			url := fmt.Sprintf("%s%s",
 				hostColor(fmt.Sprintf("http://localhost:%d", port)),
-				pathColor(path))
+				pathColor(utils.NormalisePath(path)))
 
 			t.AppendRow(table.Row{
 				methodColor(method),
