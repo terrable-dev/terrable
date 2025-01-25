@@ -1,8 +1,7 @@
 import { DoPromise } from "./Utils";
 
-const handler = async (event) => {
-    console.log('SQS Example', event)
-    await DoPromise(1500);
+const handler = async () => {
+    await DoPromise(300);
 }
 
 export { handler };
