@@ -107,17 +107,29 @@ func getListener(port string) (net.Listener, int, error) {
 
 func printConfig(config config.TerrableConfig, port int) {
 	totalEndpoints := 0
+	totalSqsQueues := 0
+
 	t := table.NewWriter()
 
 	t.SetOutputMirror(os.Stdout)
 
+	// Check for SQS queues
+	var hasSqsQueues bool
+	for _, handler := range config.Handlers {
+		if len(handler.Sqs) > 0 {
+			hasSqsQueues = true
+			break
+		}
+	}
+
+	methodColor := color.New(color.FgHiBlue).SprintFunc()
+	hostColor := color.New(color.FgHiBlack).SprintFunc()
+	pathColor := color.New(color.FgHiGreen).SprintFunc()
+	handlerNameColor := color.New(color.FgHiBlack).SprintFunc()
+
 	for _, handler := range config.Handlers {
 		for method, path := range handler.Http {
 			totalEndpoints++
-			methodColor := color.New(color.FgHiBlue).SprintFunc()
-			hostColor := color.New(color.FgHiBlack).SprintFunc()
-			pathColor := color.New(color.FgHiGreen).SprintFunc()
-			handlerNameColor := color.New(color.FgHiBlack).SprintFunc()
 
 			url := fmt.Sprintf("%s%s",
 				hostColor(fmt.Sprintf("http://localhost:%d", port)),
@@ -125,6 +137,32 @@ func printConfig(config config.TerrableConfig, port int) {
 
 			t.AppendRow(table.Row{
 				methodColor(method),
+				url,
+				handlerNameColor(fmt.Sprintf("(%s)", handler.Name)),
+			})
+		}
+	}
+
+	if hasSqsQueues {
+		t.AppendRow(table.Row{
+			"\nSQS Handlers\n",
+			"",
+			"",
+		})
+
+	}
+
+	for _, handler := range config.Handlers {
+		for range handler.Sqs {
+			totalSqsQueues++
+			handlerNameColor := color.New(color.FgHiBlack).SprintFunc()
+
+			url := fmt.Sprintf("%s%s",
+				hostColor(fmt.Sprintf("http://localhost:%d/_sqs/", port)),
+				pathColor(handler.Name))
+
+			t.AppendRow(table.Row{
+				"POST",
 				url,
 				handlerNameColor(fmt.Sprintf("(%s)", handler.Name)),
 			})

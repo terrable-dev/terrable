@@ -47,10 +47,18 @@ module "simple_api" {
           GET = "/echo-no-env",
         }
     },
+    
     DelayedHandler: {
       source = "./src/Delayed.ts"
         http = {
           GET = "/delayed",
+        }
+    },
+
+    SqsHandler: {
+      source = "./src/Sqs.ts"
+        sqs = {
+          queue = "sqs:queue:arn:my-queue"
         }
     },
 

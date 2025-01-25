@@ -1,8 +1,7 @@
 import { DoPromise } from "./Utils";
 
-const handler = async (event, context, callback) => {
-    await DoPromise(1000);
-    DoPromise(3000).then(() => {
+const handler = (event, context, callback) => {
+    DoPromise(2000).then(() => {
         callback(null, {
             statusCode: 200,
             headers: {

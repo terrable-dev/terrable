@@ -3,6 +3,7 @@ package offline
 import (
 	"bufio"
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,10 +14,16 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
 var handlerExecutionMutex sync.Mutex
+
+type HandlerOutput struct {
+	handlerResult *handlerResult
+	err           error
+}
 
 func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 	inputFiles := handlerInstance.CompileHandler()
@@ -38,104 +45,127 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			code := generateHandlerRuntimeCode(handlerInstance, r)
+			code := generateHttpHandlerRuntimeCode(handlerInstance, r)
 
 			np.Execute(code)
 
-			parsedOutputChan := make(chan *struct {
-				handlerResult *handlerResult
-				err           error
-			}, 1)
+			outputChannel := make(chan HandlerOutput, 1)
 
 			fmt.Printf("%s %s (%s) \n", r.Method, r.URL.Path, handlerInstance.handlerConfig.Name)
 			start := time.Now()
 
-			// stdout processing
-			go func() {
-				scanner := bufio.NewReader(np.stdout)
+			go processOutputStream(np, ctx, outputChannel)
+			go processErrorStream(np, ctx)
 
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						line, _ := scanner.ReadString('\n')
-
-						if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
-							extractedResult, err := extractResult(line)
-
-							parsedOutputChan <- &struct {
-								handlerResult *handlerResult
-								err           error
-							}{
-								handlerResult: extractedResult,
-								err:           err,
-							}
-
-							return
-						}
-
-						if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
-							continue
-						}
-
-						fmt.Println(line)
-					}
-				}
-			}()
-
-			// stderr processing
-			go func() {
-				scanner := bufio.NewReader(np.stderr)
-				errorColour := color.New(color.FgHiRed).SprintFunc()
-
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						line, _ := scanner.ReadString('\n')
-						fmt.Println(errorColour(line))
-					}
-				}
-			}()
-
-			select {
-			case parsed := <-parsedOutputChan:
-				if parsed.err != nil {
-					fmt.Println(err)
-					w.WriteHeader(500)
-					w.Write([]byte{})
-					return
-				}
-
-				// Set response headers
-				for k, header := range parsed.handlerResult.Headers {
-					w.Header().Set(k, header)
-				}
-
-				// Write status code
-				w.WriteHeader(int(parsed.handlerResult.StatusCode))
-
-				// Write the body
-				w.Write([]byte(parsed.handlerResult.Body))
-				fmt.Printf("Completed in %.dms\n\n", time.Since(start).Milliseconds())
-			case <-ctx.Done():
-				// Handle timeout
-				w.WriteHeader(http.StatusGatewayTimeout)
-				w.Write([]byte{})
-
-				fmt.Printf("Request timed out\n")
-				fmt.Printf("Completed in %.dms\n\n", time.Since(start).Milliseconds())
-				return
-			}
+			sendResult(start, ctx, w, outputChannel)
 		}).Methods(method)
+	}
+
+	for range handlerInstance.handlerConfig.Sqs {
+		go r.HandleFunc(fmt.Sprintf("/_sqs/%s", handlerInstance.handlerConfig.Name), func(w http.ResponseWriter, r *http.Request) {
+			handlerExecutionMutex.Lock()
+			defer handlerExecutionMutex.Unlock()
+
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+
+			code := generateSqsHandlerRuntimeCode(handlerInstance, r)
+
+			np.Execute(code)
+
+			outputChannel := make(chan HandlerOutput, 1)
+
+			fmt.Printf("%s %s (%s) \n", r.Method, r.URL.Path, handlerInstance.handlerConfig.Name)
+			start := time.Now()
+
+			go processOutputStream(np, ctx, outputChannel)
+			go processErrorStream(np, ctx)
+
+			sendResult(start, ctx, w, outputChannel)
+		}).Methods("POST")
 	}
 
 	np.cmd.Wait()
 }
 
-func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
+func sendResult(startTime time.Time, ctx context.Context, w http.ResponseWriter, outputChannel chan HandlerOutput) {
+	select {
+	case parsed := <-outputChannel:
+		if parsed.err != nil {
+			fmt.Println(parsed.err)
+			w.WriteHeader(500)
+			w.Write([]byte{})
+			return
+		}
+
+		// Set response headers
+		for k, header := range parsed.handlerResult.Headers {
+			w.Header().Set(k, header)
+		}
+
+		// Write status code
+		w.WriteHeader(int(parsed.handlerResult.StatusCode))
+
+		// Write the body
+		w.Write([]byte(parsed.handlerResult.Body))
+		fmt.Printf("Completed in %.dms\n\n", time.Since(startTime).Milliseconds())
+	case <-ctx.Done():
+		// Handle timeout
+		w.WriteHeader(http.StatusGatewayTimeout)
+		w.Write([]byte{})
+
+		fmt.Printf("Request timed out\n")
+		fmt.Printf("Completed in %.dms\n\n", time.Since(startTime).Milliseconds())
+		return
+	}
+}
+
+func processOutputStream(np *NodeProcess, ctx context.Context, resultChan chan<- HandlerOutput) {
+	scanner := bufio.NewReader(np.stdout)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			line, _ := scanner.ReadString('\n')
+
+			if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
+				extractedResult, err := extractResult(line)
+
+				resultChan <- HandlerOutput{
+					handlerResult: extractedResult,
+					err:           err,
+				}
+
+				return
+			}
+
+			if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+				continue
+			}
+
+			fmt.Println(line)
+		}
+	}
+}
+
+func processErrorStream(np *NodeProcess, ctx context.Context) {
+	scanner := bufio.NewReader(np.stderr)
+	errorColour := color.New(color.FgHiRed).SprintFunc()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			line, _ := scanner.ReadString('\n')
+			fmt.Println(errorColour(line))
+		}
+	}
+}
+
+func generateHttpHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
 	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
@@ -191,9 +221,11 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)
+	envVars := generateEnvVars(handler)
+	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON))
+}
 
-	// Create a merge of handler-defined env vars
-	// and any OS env vars to be passed into the function handler
+func generateEnvVars(handler *HandlerInstance) string {
 	envVars := make(map[string]string)
 	processEnvVars := os.Environ()
 
@@ -211,22 +243,56 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 	}
 
 	mergedEnvVars, _ := json.Marshal(envVars)
+	return string(mergedEnvVars)
+}
 
-	return fmt.Sprintf(`			
-		const env = %s;
-		process.env = {};
+func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
+	body, _ := io.ReadAll(r.Body)
+	defer r.Body.Close()
 
-		for (const envKey in env) {
-			process.env[envKey] = env[envKey];
-		}
+	// Create an SQS message
+	message := map[string]interface{}{
+		"messageId": uuid.New().String(),
+		"body":      string(body),
+		"attributes": map[string]interface{}{
+			"ApproximateReceiveCount":          "1",
+			"SentTimestamp":                    fmt.Sprintf("%d", time.Now().UnixNano()/1e6),
+			"SenderId":                         "SIMULATOR",
+			"ApproximateFirstReceiveTimestamp": fmt.Sprintf("%d", time.Now().UnixNano()/1e6),
+		},
+		"messageAttributes": map[string]interface{}{},
+		"md5OfBody":         fmt.Sprintf("%x", md5.Sum(body)),
+		"eventSource":       "aws:sqs",
+		"eventSourceARN":    fmt.Sprintf("arn:aws:sqs:eu-west-1:000000000000:%s", handler.handlerConfig.Name),
+		"awsRegion":         "eu-west-1",
+	}
 
-		delete require.cache[require.resolve('%s')];
-		var transpiledFunction = require('%s');
-		
-	    var eventInput = %s;
+	// Create the SQS event structure
+	eventInput := map[string]interface{}{
+		"Records": []interface{}{message},
+	}
 
-		// Create a fake context object
-		const context = {
+	eventInputJSON, _ := json.Marshal(eventInput)
+	envVars := generateEnvVars(handler)
+	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON))
+}
+
+func generateJSCode(envVars, executionPath, eventInputJSON string) string {
+	return fmt.Sprintf(`
+        const env = %s;
+        process.env = {};
+
+        for (const envKey in env) {
+            process.env[envKey] = env[envKey];
+        }
+
+        delete require.cache[require.resolve('%s')];
+        var transpiledFunction = require('%s');
+        
+        var eventInput = %s;
+
+        // Create a fake context object
+        const context = {
 			functionName: "local-function",
 			functionVersion: "\$LATEST",
 			invokedFunctionArn: "local:lambda",
@@ -236,61 +302,49 @@ func generateHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) strin
 			logStreamName: "local-stream",
 			getRemainingTimeInMillis: () => 30000,
 			callbackWaitsForEmptyEventLoop: true
-		};
+    	};
 
-		const callback = (error, result) => {
-			if (error) {
-				console.error(error);
-				console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-					statusCode: 500,
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						message: "Internal server error",
-						errorMessage: error.message,
-						errorType: error.name,
-						stackTrace: error.stack
-					})
-				}) + ":TERRABLE_RESULT_END");
-			} else {
-            	console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
-        	}
+        new Promise((resolve, reject) => {
+            const callback = (error, result) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
+            };
 
-			complete();
-		}
+            const handlerResult = transpiledFunction.handler(eventInput, context, callback);
 
-		// Execute the handler and handle both async and callback patterns
-		const handlerResult = transpiledFunction.handler(eventInput, context, callback);
-
-		// If the handler returns a Promise (async handler), handle it
-		if (handlerResult && typeof handlerResult.then === 'function') {
-			handlerResult
-				.then(result => {
-					if (result) { // Only handle result if it wasn't already handled by callback
-						console.log("TERRABLE_RESULT_START:" + JSON.stringify(result) + ":TERRABLE_RESULT_END");
-						complete();
-					}
-				})
-				.catch(error => {
-					console.error(error);
-					console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-						statusCode: 500,
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({
-							message: "Internal server error",
-							errorMessage: error.message,
-							errorType: error.name,
-							stackTrace: error.stack
-						})
-					}) + ":TERRABLE_RESULT_END");
-
-					complete();
-				});
-		}
-	`, mergedEnvVars, handler.GetExecutionPath(), handler.GetExecutionPath(), eventInputJSON)
+            if (handlerResult && typeof handlerResult.then === 'function') {
+                handlerResult.then(resolve).catch(reject);
+            } else if (!handlerResult) {
+                // If handlerResult is undefined, it means the function is using callbacks
+            } else {
+                resolve(handlerResult);
+            }
+        })
+        .then(result => {
+			console.log("TERRABLE_RESULT_START:" + JSON.stringify({ statusCode: 200, ...result }) + ":TERRABLE_RESULT_END");
+        })
+        .catch(error => {
+            console.error(error);
+            console.log("TERRABLE_RESULT_START:" + JSON.stringify({
+                statusCode: 500,
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    message: "Internal server error",
+                    errorMessage: error.message,
+                    errorType: error.name,
+                    stackTrace: error.stack
+                })
+            }) + ":TERRABLE_RESULT_END");
+        })
+        .finally(() => {
+            complete();
+        });
+    `, envVars, executionPath, executionPath, eventInputJSON)
 }
 
 func extractResult(output string) (*handlerResult, error) {
