@@ -59,7 +59,7 @@ func TestPrintConfig(t *testing.T) {
 	expectedEndpoints := []string{
 		"GET           http://localhost:1234/path1            (Handler1) ",
 		"POST          http://localhost:1234/path1            (Handler1) ",
-		"GET           http://localhost:1234path2             (Handler2) ",
+		"GET           http://localhost:1234/path2            (Handler2) ",
 		"POST          http://localhost:1234/_sqs/SqsHandler  (SqsHandler)",
 	}
 
