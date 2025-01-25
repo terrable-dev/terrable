@@ -149,7 +149,6 @@ func printConfig(config config.TerrableConfig, port int) {
 			"",
 			"",
 		})
-
 	}
 
 	for _, handler := range config.Handlers {
