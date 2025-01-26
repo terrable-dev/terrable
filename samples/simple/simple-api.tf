@@ -49,14 +49,14 @@ module "simple_api" {
     EchoHandlerNoLocalEnv: {
         source = "./src/Echo.ts"
         http = {
-          GET = "/echo-no-env",
+          GET = "/echo-no-env"
         }
     },
     
     DelayedHandler: {
       source = "./src/Delayed.ts"
         http = {
-          GET = "/delayed",
+          GET = "/delayed"
         }
     },
 
@@ -73,13 +73,13 @@ module "simple_api" {
     CollisionOne: {
       source = "./src/Collision1/Collision.ts"
         http = {
-          GET = "/collision1",
+          GET = "/collision1"
         }
     },
     CollisionTwo: {
       source = "./src/Collision2/Collision.ts"
         http = {
-          GET = "/collision2",
+          GET = "/collision2"
         }
     }
   }

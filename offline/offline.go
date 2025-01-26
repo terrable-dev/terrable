@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"errors"
 
 	"github.com/fatih/color"
 	"github.com/gorilla/mux"
@@ -94,7 +95,7 @@ func validateConfig(config *config.TerrableConfig) error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(strings.Join(errs, "\n"))
+		return errors.New(strings.Join(errs, "\n"))
 	}
 
 	return nil
