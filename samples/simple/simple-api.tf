@@ -7,7 +7,7 @@ terraform {
 }
 
 resource "aws_sqs_queue" "test_queue" {
-  name = "loopdin-test-queue"
+  name = "test-queue"
 }
 
 module "simple_api" {
