@@ -33,6 +33,7 @@ module "simple_api" {
         http = {
           GET = "/",
           POST = "/",
+          PUT = "",
         }
     },
 

@@ -71,3 +71,67 @@ func TestPrintConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    *config.TerrableConfig
+		expectErr bool
+	}{
+		{
+			name: "ValidConfig",
+			config: &config.TerrableConfig{
+				Handlers: []config.HandlerMapping{
+					{
+						Name:   "Handler1",
+						Source: "source1",
+						Http: map[string]string{
+							"GET":  "/path1",
+							"POST": "/path1",
+						},
+					},
+					{
+						Name:   "Handler2",
+						Source: "source2",
+						Http: map[string]string{
+							"GET": "/path2",
+						},
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "InvalidConfig",
+			config: &config.TerrableConfig{
+				Handlers: []config.HandlerMapping{
+					{
+						Name:   "Handler1",
+						Source: "source1",
+						Http: map[string]string{
+							"GET":  "path1",
+							"POST": "/path1",
+						},
+					},
+					{
+						Name:   "Handler2",
+						Source: "source2",
+						Http: map[string]string{
+							"GET": "path2",
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateConfig(tt.config)
+			if (err != nil) != tt.expectErr {
+				t.Errorf("validateConfig() error = %v, expectErr %v", err, tt.expectErr)
+			}
+		})
+	}
+}

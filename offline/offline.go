@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/fatih/color"
@@ -22,10 +23,10 @@ func Run(filePath string, moduleName string, port string) error {
 		log.Fatalf("error running offline: %s", err)
 	}
 
-	// TODO: Validate config
+	err = validateConfig(terrableConfig)
 
 	if err != nil {
-		panic(fmt.Errorf("error parsing .terrable.toml file: %w", err))
+		return fmt.Errorf(`error validating configuration: %s`, err.Error())
 	}
 
 	listener, activePort, err := getListener(port)
@@ -76,6 +77,24 @@ func Run(filePath string, moduleName string, port string) error {
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("could not start server on port %d. Error: %w", activePort, err)
+	}
+
+	return nil
+}
+
+func validateConfig(config *config.TerrableConfig) error {
+	var errs []string
+
+	for _, handler := range config.Handlers {
+		for method, path := range handler.Http {
+			if !strings.HasPrefix(path, "/") {
+				errs = append(errs, fmt.Sprintf("Handler '%s' does not have a '/' prefix for the HTTP route %s '%s'.", handler.Name, method, path))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(strings.Join(errs, "\n"))
 	}
 
 	return nil
@@ -133,7 +152,7 @@ func printConfig(config config.TerrableConfig, port int) {
 
 			url := fmt.Sprintf("%s%s",
 				hostColor(fmt.Sprintf("http://localhost:%d", port)),
-				pathColor(utils.NormalisePath(path)))
+				pathColor(path))
 
 			t.AppendRow(table.Row{
 				methodColor(method),
