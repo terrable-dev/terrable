@@ -25,7 +25,7 @@ func TestPrintConfig(t *testing.T) {
 				Name:   "Handler2",
 				Source: "source2",
 				Http: map[string]string{
-					"GET": "path2",
+					"GET": "/path2",
 				},
 			},
 			{
