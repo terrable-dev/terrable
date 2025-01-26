@@ -6,6 +6,10 @@ terraform {
   required_version = ">= 1.9.2"
 }
 
+resource "aws_sqs_queue" "test_queue" {
+  name = "loopdin-test-queue"
+}
+
 module "simple_api" {
   source = "../../../terraform-aws-terrable-api"
   api_name = "simple-api"
@@ -29,7 +33,7 @@ module "simple_api" {
         http = {
           GET = "/",
           POST = "/",
-          PUT = "",
+          PUT = "/",
         }
     },
 
@@ -38,7 +42,7 @@ module "simple_api" {
         source = "./src/EchoCallback.ts"
         http = {
           GET = "/echo-callback"
-          PUT = "echo-callback"
+          PUT = "/echo-callback"
         }
     },
 
@@ -60,7 +64,7 @@ module "simple_api" {
     SqsHandler: {
       source = "./src/Sqs.ts"
         sqs = {
-          queue = "sqs:queue:arn:my-queue"
+          queue = aws_sqs_queue.test_queue.arn
         }
     },
 

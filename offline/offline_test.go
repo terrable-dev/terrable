@@ -31,7 +31,7 @@ func TestPrintConfig(t *testing.T) {
 			{
 				Name:   "SqsHandler",
 				Source: "source3",
-				Sqs: map[string]string{
+				Sqs: map[string]interface{}{
 					"queue": "arn:aws:sqs:region:account:queue",
 				},
 			},
