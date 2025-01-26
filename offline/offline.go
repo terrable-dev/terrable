@@ -1,6 +1,7 @@
 package offline
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -8,7 +9,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"errors"
 
 	"github.com/fatih/color"
 	"github.com/gorilla/mux"
