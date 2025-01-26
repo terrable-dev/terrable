@@ -129,11 +129,11 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				}
 			}
 
-			sqs := make(map[string]string)
+			sqs := make(map[string]interface{})
 			if sqsConfig, ok := handlerConfig["sqs"]; ok && !sqsConfig.IsNull() {
 				sqsConfigMap := sqsConfig.AsValueMap()
-				for _, value := range sqsConfigMap {
-					sqs["queue"] = value.AsString()
+				for key, value := range sqsConfigMap {
+					sqs[key] = value
 				}
 			}
 
