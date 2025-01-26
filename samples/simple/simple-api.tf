@@ -7,7 +7,7 @@ terraform {
 }
 
 resource "aws_sqs_queue" "test_queue" {
-  name = "loopdin-test-queue"
+  name = "test-queue"
 }
 
 module "simple_api" {
@@ -33,7 +33,6 @@ module "simple_api" {
         http = {
           GET = "/",
           POST = "/",
-          PUT = "/",
         }
     },
 
@@ -42,7 +41,6 @@ module "simple_api" {
         source = "./src/EchoCallback.ts"
         http = {
           GET = "/echo-callback"
-          PUT = "/echo-callback"
         }
     },
 
