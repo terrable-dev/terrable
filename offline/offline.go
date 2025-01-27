@@ -17,7 +17,10 @@ import (
 	"github.com/terrable-dev/terrable/utils"
 )
 
-func Run(filePath string, moduleName string, port string) error {
+var DebugConfig config.DebugConfig
+
+func Run(filePath string, moduleName string, port string, debugConfig config.DebugConfig) error {
+	DebugConfig = debugConfig
 	terrableConfig, err := utils.ParseTerraformFile(filePath, moduleName)
 
 	if err != nil {

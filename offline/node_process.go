@@ -2,6 +2,7 @@ package offline
 
 import (
 	_ "embed"
+	"fmt"
 	"io"
 	"os/exec"
 	"sync"
@@ -39,7 +40,7 @@ func GetNodeProcess() (*NodeProcess, error) {
 }
 
 func initNodeProcess() (*NodeProcess, error) {
-	cmd := exec.Command("node", "--inspect=9229", "-e", NODE_HANDLER_WRAPPER)
+	cmd := exec.Command("node", fmt.Sprintf("--inspect=%d", DebugConfig.NodeJsDebugPort), "-e", NODE_HANDLER_WRAPPER)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

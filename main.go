@@ -24,6 +24,7 @@ func main() {
 					filePath := cCtx.String("file")
 					moduleName := cCtx.String("module")
 					port := cCtx.String("port")
+					nodeDebugPort := cCtx.Int("node-debug-port")
 
 					if filePath == "" {
 						filePath = tomlConfig.Offline.File
@@ -37,7 +38,7 @@ func main() {
 						port = tomlConfig.Offline.Port
 					}
 
-					err := offline.Run(filePath, moduleName, port)
+					err := offline.Run(filePath, moduleName, port, NewDebugConfig(nodeDebugPort))
 
 					if err != nil {
 						return err
@@ -64,6 +65,12 @@ func main() {
 						Required: false,
 						Usage:    "The port number that the local instance of the API should listen for requests at",
 					},
+					&cli.StringFlag{
+						Name:     "node-debug-port",
+						Required: false,
+						Value:    "9229",
+						Usage:    "The port number that the Node.js debugger should listen on",
+					},
 				},
 			},
 		},
@@ -71,5 +78,11 @@ func main() {
 
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func NewDebugConfig(nodeDebugPort int) config.DebugConfig {
+	return config.DebugConfig{
+		NodeJsDebugPort: nodeDebugPort,
 	}
 }
