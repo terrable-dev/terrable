@@ -3,7 +3,6 @@ module github.com/terrable-dev/terrable
 go 1.22.5
 
 require (
-	github.com/BurntSushi/toml v1.4.0
 	github.com/aws/aws-sdk-go-v2 v1.32.6
 	github.com/aws/aws-sdk-go-v2/config v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.1

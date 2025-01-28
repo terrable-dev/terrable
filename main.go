@@ -19,24 +19,10 @@ func main() {
 				Name:  "offline",
 				Usage: "",
 				Action: func(cCtx *cli.Context) error {
-					tomlConfig, _ := config.ParseTerrableToml()
-
 					filePath := cCtx.String("file")
 					moduleName := cCtx.String("module")
 					port := cCtx.String("port")
 					nodeDebugPort := cCtx.Int("node-debug-port")
-
-					if filePath == "" {
-						filePath = tomlConfig.Offline.File
-					}
-
-					if moduleName == "" {
-						moduleName = tomlConfig.Offline.Module
-					}
-
-					if port == "" {
-						port = tomlConfig.Offline.Port
-					}
 
 					err := offline.Run(filePath, moduleName, port, NewDebugConfig(nodeDebugPort))
 
