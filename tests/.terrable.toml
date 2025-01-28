@@ -1,4 +1,0 @@
-[offline]
-file    = "../samples/simple/simple-api.tf"
-module  = "simple_api"
-port    = "8081"
