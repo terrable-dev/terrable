@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,9 +81,11 @@ func FindTargetModule(file *hcl.File, targetModuleName string) (*hcl.Block, erro
 	return nil, fmt.Errorf("target module '%s' not found", targetModuleName)
 }
 
+const DefaultTimeout = 3
+
 func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.TerrableConfig, error) {
 	terrableConfig := config.TerrableConfig{
-		Timeout: 3,
+		Timeout: DefaultTimeout,
 	}
 
 	moduleContent, _ := moduleBlock.Body.Content(&hcl.BodySchema{
@@ -109,16 +110,15 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 
 	// Extract global timeout
 	if timeout, ok := moduleContent.Attributes["timeout"]; ok {
-		timeoutValue, _ := timeout.Expr.Value(nil)
-
-		if !timeoutValue.IsNull() {
-			parsedTimeout, accuracy := timeoutValue.AsBigFloat().Int64()
-
-			if accuracy != big.Exact {
-				return nil, fmt.Errorf("error parsing timeout: timeout value is not an integer")
-			}
-
-			terrableConfig.Timeout = int(parsedTimeout)
+		timeoutValue, diags := timeout.Expr.Value(nil)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("error parsing global timeout: %s", diags.Error())
+		}
+		if timeoutValue.Type() == cty.Number {
+			timeoutInt, _ := timeoutValue.AsBigFloat().Int64()
+			terrableConfig.Timeout = int(timeoutInt)
+		} else {
+			return nil, fmt.Errorf("global timeout must be a number")
 		}
 	}
 
@@ -156,32 +156,16 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				}
 			}
 
-			// Extract global timeout
-			// if timeout, ok := moduleContent.Attributes["timeout"]; ok {
-			// 	timeoutValue, _ := timeout.Expr.Value(nil)
-
-			// 	if !timeoutValue.IsNull() {
-			// 		parsedTimeout, accuracy := timeoutValue.AsBigFloat().Int64()
-
-			// 		if accuracy != big.Exact {
-			// 			return nil, fmt.Errorf("error parsing timeout: timeout value is not an integer")
-			// 		}
-
-			// 		terrableConfig.Timeout = int(parsedTimeout)
-			// 	}
-			// }
-
 			// Use global timeout as default for handler
 			timeout := terrableConfig.Timeout
 
 			if handlerTimeout, ok := handlerConfig["timeout"]; ok && !handlerTimeout.IsNull() {
-				parsedTimeout, accuracy := handlerTimeout.AsBigFloat().Int64()
-
-				if accuracy != big.Exact {
-					return nil, fmt.Errorf("error parsing timeout: timeout value is not an integer")
+				if handlerTimeout.Type() == cty.Number {
+					timeoutInt, _ := handlerTimeout.AsBigFloat().Int64()
+					timeout = int(timeoutInt)
+				} else {
+					return nil, fmt.Errorf("handler timeout must be a number for handler %s", handlerName)
 				}
-
-				timeout = int(parsedTimeout)
 			}
 
 			absoluteSourceFilePath, err := getAbsoluteHandlerSourcePath(filename, source)
