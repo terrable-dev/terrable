@@ -81,13 +81,18 @@ func FindTargetModule(file *hcl.File, targetModuleName string) (*hcl.Block, erro
 	return nil, fmt.Errorf("target module '%s' not found", targetModuleName)
 }
 
+const DefaultTimeout = 3
+
 func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.TerrableConfig, error) {
-	var terrableConfig config.TerrableConfig
+	terrableConfig := config.TerrableConfig{
+		Timeout: DefaultTimeout,
+	}
 
 	moduleContent, _ := moduleBlock.Body.Content(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{Name: "handlers", Required: false},
 			{Name: "global_environment_variables", Required: false},
+			{Name: "timeout", Required: false},
 		},
 	})
 
@@ -101,6 +106,20 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 		}
 
 		terrableConfig.GlobalEnvironmentVariables = parsedGlobalEnvs
+	}
+
+	// Extract global timeout
+	if timeout, ok := moduleContent.Attributes["timeout"]; ok {
+		timeoutValue, diags := timeout.Expr.Value(nil)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("error parsing global timeout: %s", diags.Error())
+		}
+		if timeoutValue.Type() == cty.Number {
+			timeoutInt, _ := timeoutValue.AsBigFloat().Int64()
+			terrableConfig.Timeout = int(timeoutInt)
+		} else {
+			return nil, fmt.Errorf("global timeout must be a number")
+		}
 	}
 
 	if handlers, ok := moduleContent.Attributes["handlers"]; ok {
@@ -137,6 +156,18 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				}
 			}
 
+			// Use global timeout as default for handler
+			timeout := terrableConfig.Timeout
+
+			if handlerTimeout, ok := handlerConfig["timeout"]; ok && !handlerTimeout.IsNull() {
+				if handlerTimeout.Type() == cty.Number {
+					timeoutInt, _ := handlerTimeout.AsBigFloat().Int64()
+					timeout = int(timeoutInt)
+				} else {
+					return nil, fmt.Errorf("handler timeout must be a number for handler %s", handlerName)
+				}
+			}
+
 			absoluteSourceFilePath, err := getAbsoluteHandlerSourcePath(filename, source)
 			if err != nil {
 				return nil, fmt.Errorf("error getting absolute source path for handler %s: %w", handlerName, err)
@@ -148,6 +179,7 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				Http:                 http,
 				Sqs:                  sqs,
 				EnvironmentVariables: environmentVariables,
+				Timeout:              timeout,
 			})
 		}
 	}

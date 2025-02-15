@@ -38,6 +38,7 @@ function createContext() {
         process: process,
         complete: () => {
             consoleProxy.log("CODE_EXECUTION_COMPLETE");
+            buffer = "";
             process.stdin.resume();
         },
     })
