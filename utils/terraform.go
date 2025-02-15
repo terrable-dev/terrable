@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,12 +83,15 @@ func FindTargetModule(file *hcl.File, targetModuleName string) (*hcl.Block, erro
 }
 
 func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.TerrableConfig, error) {
-	var terrableConfig config.TerrableConfig
+	terrableConfig := config.TerrableConfig{
+		Timeout: 3,
+	}
 
 	moduleContent, _ := moduleBlock.Body.Content(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{Name: "handlers", Required: false},
 			{Name: "global_environment_variables", Required: false},
+			{Name: "timeout", Required: false},
 		},
 	})
 
@@ -101,6 +105,21 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 		}
 
 		terrableConfig.GlobalEnvironmentVariables = parsedGlobalEnvs
+	}
+
+	// Extract global timeout
+	if timeout, ok := moduleContent.Attributes["timeout"]; ok {
+		timeoutValue, _ := timeout.Expr.Value(nil)
+
+		if !timeoutValue.IsNull() {
+			parsedTimeout, accuracy := timeoutValue.AsBigFloat().Int64()
+
+			if accuracy != big.Exact {
+				return nil, fmt.Errorf("error parsing timeout: timeout value is not an integer")
+			}
+
+			terrableConfig.Timeout = int(parsedTimeout)
+		}
 	}
 
 	if handlers, ok := moduleContent.Attributes["handlers"]; ok {
@@ -137,6 +156,34 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				}
 			}
 
+			// Extract global timeout
+			// if timeout, ok := moduleContent.Attributes["timeout"]; ok {
+			// 	timeoutValue, _ := timeout.Expr.Value(nil)
+
+			// 	if !timeoutValue.IsNull() {
+			// 		parsedTimeout, accuracy := timeoutValue.AsBigFloat().Int64()
+
+			// 		if accuracy != big.Exact {
+			// 			return nil, fmt.Errorf("error parsing timeout: timeout value is not an integer")
+			// 		}
+
+			// 		terrableConfig.Timeout = int(parsedTimeout)
+			// 	}
+			// }
+
+			// Use global timeout as default for handler
+			timeout := terrableConfig.Timeout
+
+			if handlerTimeout, ok := handlerConfig["timeout"]; ok && !handlerTimeout.IsNull() {
+				parsedTimeout, accuracy := handlerTimeout.AsBigFloat().Int64()
+
+				if accuracy != big.Exact {
+					return nil, fmt.Errorf("error parsing timeout: timeout value is not an integer")
+				}
+
+				timeout = int(parsedTimeout)
+			}
+
 			absoluteSourceFilePath, err := getAbsoluteHandlerSourcePath(filename, source)
 			if err != nil {
 				return nil, fmt.Errorf("error getting absolute source path for handler %s: %w", handlerName, err)
@@ -148,6 +195,7 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				Http:                 http,
 				Sqs:                  sqs,
 				EnvironmentVariables: environmentVariables,
+				Timeout:              timeout,
 			})
 		}
 	}

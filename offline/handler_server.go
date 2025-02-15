@@ -2,7 +2,6 @@ package offline
 
 import (
 	"bufio"
-	"context"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -37,132 +36,104 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 
 	defer np.Close()
 
+	handleRequestFunc := func(w http.ResponseWriter, r *http.Request, code string) {
+		handlerExecutionMutex.Lock()
+		defer handlerExecutionMutex.Unlock()
+
+		np.Execute(code)
+
+		outputChannel := make(chan HandlerOutput, 1)
+		errorChannel := make(chan error, 1)
+
+		fmt.Printf("%s %s (%s) \n", r.Method, r.URL.Path, handlerInstance.handlerConfig.Name)
+		start := time.Now()
+
+		go func() {
+			if err := processOutputStream(np, outputChannel); err != nil {
+				errorChannel <- err
+			}
+		}()
+
+		// Start error processing with done channel
+		go processErrorStream(np)
+		sendResult(start, w, outputChannel)
+	}
+
 	for method, path := range handlerInstance.handlerConfig.Http {
-		go r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			handlerExecutionMutex.Lock()
-			defer handlerExecutionMutex.Unlock()
-
-			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-			defer cancel()
-
+		r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 			code := generateHttpHandlerRuntimeCode(handlerInstance, r)
-
-			np.Execute(code)
-
-			outputChannel := make(chan HandlerOutput, 1)
-
-			fmt.Printf("%s %s (%s) \n", r.Method, r.URL.Path, handlerInstance.handlerConfig.Name)
-			start := time.Now()
-
-			go processOutputStream(np, ctx, outputChannel)
-			go processErrorStream(np, ctx)
-
-			sendResult(start, ctx, w, outputChannel)
+			handleRequestFunc(w, r, code)
 		}).Methods(method)
 	}
 
 	for range handlerInstance.handlerConfig.Sqs {
-		go r.HandleFunc(fmt.Sprintf("/_sqs/%s", handlerInstance.handlerConfig.Name), func(w http.ResponseWriter, r *http.Request) {
-			handlerExecutionMutex.Lock()
-			defer handlerExecutionMutex.Unlock()
-
-			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-			defer cancel()
-
+		r.HandleFunc(fmt.Sprintf("/_sqs/%s", handlerInstance.handlerConfig.Name), func(w http.ResponseWriter, r *http.Request) {
 			code := generateSqsHandlerRuntimeCode(handlerInstance, r)
-
-			np.Execute(code)
-
-			outputChannel := make(chan HandlerOutput, 1)
-
-			fmt.Printf("%s %s (%s) \n", r.Method, r.URL.Path, handlerInstance.handlerConfig.Name)
-			start := time.Now()
-
-			go processOutputStream(np, ctx, outputChannel)
-			go processErrorStream(np, ctx)
-
-			sendResult(start, ctx, w, outputChannel)
+			handleRequestFunc(w, r, code)
 		}).Methods("POST")
 	}
 
 	np.cmd.Wait()
 }
 
-func sendResult(startTime time.Time, ctx context.Context, w http.ResponseWriter, outputChannel chan HandlerOutput) {
-	select {
-	case parsed := <-outputChannel:
-		if parsed.err != nil {
-			fmt.Println(parsed.err)
-			w.WriteHeader(500)
-			w.Write([]byte{})
-			return
-		}
-
-		// Set response headers
-		for k, header := range parsed.handlerResult.Headers {
-			w.Header().Set(k, header)
-		}
-
-		// Write status code
-		w.WriteHeader(int(parsed.handlerResult.StatusCode))
-
-		// Write the body
-		w.Write([]byte(parsed.handlerResult.Body))
-		fmt.Printf("Completed in %.dms\n\n", time.Since(startTime).Milliseconds())
-	case <-ctx.Done():
-		// Handle timeout
-		w.WriteHeader(http.StatusGatewayTimeout)
+func sendResult(startTime time.Time, w http.ResponseWriter, outputChannel chan HandlerOutput) {
+	parsed := <-outputChannel
+	if parsed.err != nil {
+		fmt.Println(parsed.err)
+		w.WriteHeader(500)
 		w.Write([]byte{})
-
-		fmt.Printf("Request timed out\n")
-		fmt.Printf("Completed in %.dms\n\n", time.Since(startTime).Milliseconds())
 		return
 	}
+
+	// Set response headers
+	for k, header := range parsed.handlerResult.Headers {
+		w.Header().Set(k, header)
+	}
+
+	// Write status code
+	w.WriteHeader(int(parsed.handlerResult.StatusCode))
+
+	// Write the body
+	w.Write([]byte(parsed.handlerResult.Body))
+	fmt.Printf("Completed in %.dms\n\n", time.Since(startTime).Milliseconds())
 }
 
-func processOutputStream(np *NodeProcess, ctx context.Context, resultChan chan<- HandlerOutput) {
+func processOutputStream(np *NodeProcess, resultChan chan<- HandlerOutput) error {
 	scanner := bufio.NewReader(np.stdout)
 
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			line, _ := scanner.ReadString('\n')
+		line, err := scanner.ReadString('\n')
 
-			if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
-				extractedResult, err := extractResult(line)
-
-				resultChan <- HandlerOutput{
-					handlerResult: extractedResult,
-					err:           err,
-				}
-
-				return
+		if err != nil {
+			if err == io.EOF {
+				return nil
 			}
-
-			if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
-				continue
-			}
-
-			fmt.Println(line)
+			return err
 		}
+
+		if strings.HasPrefix(line, "TERRABLE_RESULT_START") {
+			extractedResult, err := extractResult(line)
+			resultChan <- HandlerOutput{
+				handlerResult: extractedResult,
+				err:           err,
+			}
+			return nil
+		}
+
+		if strings.HasPrefix(line, "CODE_EXECUTION_COMPLETE") {
+			continue
+		}
+
+		fmt.Println(line)
 	}
 }
 
-func processErrorStream(np *NodeProcess, ctx context.Context) {
+func processErrorStream(np *NodeProcess) {
 	scanner := bufio.NewReader(np.stderr)
 	errorColour := color.New(color.FgHiRed).SprintFunc()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			line, _ := scanner.ReadString('\n')
-			fmt.Println(errorColour(line))
-		}
-	}
+	line, _ := scanner.ReadString('\n')
+	fmt.Println(errorColour(line))
 }
 
 func generateHttpHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) string {
@@ -222,7 +193,7 @@ func generateHttpHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) s
 
 	eventInputJSON, _ := json.Marshal(eventInput)
 	envVars := generateEnvVars(handler)
-	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON))
+	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON), handler.handlerConfig.Timeout)
 }
 
 func generateEnvVars(handler *HandlerInstance) string {
@@ -274,10 +245,10 @@ func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) st
 
 	eventInputJSON, _ := json.Marshal(eventInput)
 	envVars := generateEnvVars(handler)
-	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON))
+	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON), handler.handlerConfig.Timeout)
 }
 
-func generateJSCode(envVars, executionPath, eventInputJSON string) string {
+func generateJSCode(envVars, executionPath, eventInputJSON string, timeoutSeconds int) string {
 	return fmt.Sprintf(`
         const env = %s;
         process.env = {};
@@ -290,6 +261,7 @@ func generateJSCode(envVars, executionPath, eventInputJSON string) string {
         var transpiledFunction = require('%s');
         
         var eventInput = %s;
+        const endTime = Date.now() + (%d * 1000);
 
         // Create a fake context object
         const context = {
@@ -300,11 +272,22 @@ func generateJSCode(envVars, executionPath, eventInputJSON string) string {
 			awsRequestId: "local-" + Date.now(),
 			logGroupName: "local-group",
 			logStreamName: "local-stream",
-			getRemainingTimeInMillis: () => 30000,
+			getRemainingTimeInMillis: () => {
+                const remaining = endTime - Date.now();
+                return remaining > 0 ? remaining : 0;
+            },
 			callbackWaitsForEmptyEventLoop: true
     	};
 
-        new Promise((resolve, reject) => {
+        // Create a timeout promise
+        const timeoutPromise = new Promise((resolve) => {
+            setTimeout(() => {
+				resolve({ statusCode: 504 })
+            }, %d * 1000);
+        });
+
+		// Main execution promise
+        const executionPromise = new Promise((resolve, reject) => {
             const callback = (error, result) => {
                 if (error) {
                     reject(error);
@@ -322,19 +305,22 @@ func generateJSCode(envVars, executionPath, eventInputJSON string) string {
             } else {
                 resolve(handlerResult);
             }
-        })
+        });
+
+        // Race between execution and timeout
+        Promise.race([executionPromise, timeoutPromise])
         .then(result => {
 			console.log("TERRABLE_RESULT_START:" + JSON.stringify({ statusCode: 200, ...result }) + ":TERRABLE_RESULT_END");
         })
         .catch(error => {
             console.error(error);
             console.log("TERRABLE_RESULT_START:" + JSON.stringify({
-                statusCode: 500,
+                statusCode: error.message.includes('timed out') ? 408 : 500,
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    message: "Internal server error",
+                    message: error.message.includes('timed out') ? "Function timed out" : "Internal server error",
                     errorMessage: error.message,
                     errorType: error.name,
                     stackTrace: error.stack
@@ -344,7 +330,7 @@ func generateJSCode(envVars, executionPath, eventInputJSON string) string {
         .finally(() => {
             complete();
         });
-    `, envVars, executionPath, executionPath, eventInputJSON)
+    `, envVars, executionPath, executionPath, eventInputJSON, timeoutSeconds, timeoutSeconds)
 }
 
 func extractResult(output string) (*handlerResult, error) {

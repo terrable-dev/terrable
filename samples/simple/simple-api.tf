@@ -18,6 +18,7 @@ module "simple_api" {
     GLOBAL_ENV = "global-env-var"
   }
 
+  timeout = 3
   runtime = "nodejs20.x"
   
   rest_api = {
@@ -57,6 +58,14 @@ module "simple_api" {
       source = "./src/Delayed.ts"
         http = {
           GET = "/delayed"
+        }
+    },
+
+    TimeoutDelay: {
+      timeout = 1
+      source = "./src/TimeoutDelay.ts"
+        http = {
+          GET = "/timeout"
         }
     },
 
