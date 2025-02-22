@@ -1,6 +1,7 @@
 package offline
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -19,7 +20,7 @@ import (
 
 var DebugConfig config.DebugConfig
 
-func Run(filePath string, moduleName string, port string, debugConfig config.DebugConfig) error {
+func Run(filePath string, moduleName string, port string, debugConfig config.DebugConfig, envFile string) error {
 	DebugConfig = debugConfig
 	terrableConfig, err := utils.ParseTerraformFile(filePath, moduleName)
 
@@ -46,6 +47,15 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
+	// Read environment variables from the specified env file (if provided)
+	var fileEnvVars map[string]string
+	if envFile != "" {
+		fileEnvVars, err = readEnvFile(envFile)
+		if err != nil {
+			return fmt.Errorf("could not read env file: %w", err)
+		}
+	}
+
 	r := mux.NewRouter()
 
 	// Not Found handlers
@@ -70,7 +80,7 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 
 			ServeHandler(&HandlerInstance{
 				handlerConfig: handler,
-				envVars:       mergeEnvMaps(terrableConfig.GlobalEnvironmentVariables, handler.EnvironmentVariables),
+				envVars:       mergeEnvMaps(terrableConfig.GlobalEnvironmentVariables, mergeEnvMaps(handler.EnvironmentVariables, fileEnvVars)),
 			}, r)
 		}(handler)
 	}
@@ -223,4 +233,34 @@ func mergeEnvMaps(global, local map[string]string) map[string]string {
 	}
 
 	return merged
+}
+
+func readEnvFile(filePath string) (map[string]string, error) {
+	envVars := make(map[string]string)
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			envVars[key] = value
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return envVars, nil
 }

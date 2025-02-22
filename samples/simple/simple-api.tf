@@ -46,6 +46,18 @@ module "simple_api" {
         }
     },
 
+    # Echo Handler with some variables that should be overwritten by the .env file
+    EchoEnvTest: {
+        source = "./src/Echo.ts"
+        environment_variables = {
+          ENV_FILE_OVERRIDE = "SHOULD_NOT_ECHO"
+        }
+        http = {
+          GET = "/echo-env-test"
+        }
+    },
+
+
     # Echo Handler with no local environment variables
     EchoHandlerNoLocalEnv: {
         source = "./src/Echo.ts"
