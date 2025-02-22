@@ -23,8 +23,9 @@ func main() {
 					moduleName := cCtx.String("module")
 					port := cCtx.String("port")
 					nodeDebugPort := cCtx.Int("node-debug-port")
+					envFile := cCtx.String("envfile")
 
-					err := offline.Run(filePath, moduleName, port, NewDebugConfig(nodeDebugPort))
+					err := offline.Run(filePath, moduleName, port, NewDebugConfig(nodeDebugPort), envFile)
 
 					if err != nil {
 						return err
@@ -56,6 +57,12 @@ func main() {
 						Required: false,
 						Value:    "9229",
 						Usage:    "The port number that the Node.js debugger should listen on",
+					},
+					&cli.StringFlag{
+						Name:     "envfile",
+						Required: false,
+						Value:    "",
+						Usage:    "File containing environment variables in key-value (.env) format",
 					},
 				},
 			},
