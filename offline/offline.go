@@ -80,7 +80,7 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 
 			ServeHandler(&HandlerInstance{
 				handlerConfig: handler,
-				envVars:       mergeEnvMaps(terrableConfig.GlobalEnvironmentVariables, mergeEnvMaps(handler.EnvironmentVariables, fileEnvVars)),
+				envVars:       mergeEnvMaps(terrableConfig.EnvironmentVariables, mergeEnvMaps(terrableConfig.EnvironmentVariables, fileEnvVars)),
 			}, r)
 		}(handler)
 	}

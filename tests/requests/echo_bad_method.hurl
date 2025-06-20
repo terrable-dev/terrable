@@ -4,3 +4,4 @@ HTTP 404
 
 [Asserts]
 jsonpath "$.message" == "Not Found"
+ 
