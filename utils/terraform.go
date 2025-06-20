@@ -91,21 +91,21 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 	moduleContent, _ := moduleBlock.Body.Content(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{Name: "handlers", Required: false},
-			{Name: "global_environment_variables", Required: false},
+			{Name: "environment_variables", Required: false},
 			{Name: "timeout", Required: false},
 		},
 	})
 
-	// Extract global environment variables
-	if globalEnvs, ok := moduleContent.Attributes["global_environment_variables"]; ok {
-		globalEnvsValue, _ := globalEnvs.Expr.Value(nil)
-		parsedGlobalEnvs, err := parseEnvironmentVariables(globalEnvsValue)
+	// Extract environment variables
+	if environmentVariables, ok := moduleContent.Attributes["environment_variables"]; ok {
+		envsValue, _ := environmentVariables.Expr.Value(nil)
+		parsedEnvs, err := parseEnvironmentVariables(envsValue)
 
 		if err != nil {
-			return nil, fmt.Errorf("error parsing global environment variables: %w", err)
+			return nil, fmt.Errorf("error parsing environment variables: %w", err)
 		}
 
-		terrableConfig.GlobalEnvironmentVariables = parsedGlobalEnvs
+		terrableConfig.EnvironmentVariables = parsedEnvs
 	}
 
 	// Extract global timeout
@@ -130,15 +130,6 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 			handlerConfig := handlerValue.AsValueMap()
 
 			source := handlerConfig["source"].AsString()
-
-			environmentVariables := make(map[string]string)
-			if envVars, ok := handlerConfig["environment_variables"]; ok && !envVars.IsNull() {
-				parsedEnvVars, err := parseEnvironmentVariables(envVars)
-				if err != nil {
-					return nil, fmt.Errorf("error parsing environment variables for handler %s: %w", handlerName, err)
-				}
-				environmentVariables = parsedEnvVars
-			}
 
 			http := make(map[string]string)
 			if httpConfig, ok := handlerConfig["http"]; ok && !httpConfig.IsNull() {
@@ -174,12 +165,11 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 			}
 
 			terrableConfig.Handlers = append(terrableConfig.Handlers, config.HandlerMapping{
-				Name:                 handlerName,
-				Source:               absoluteSourceFilePath,
-				Http:                 http,
-				Sqs:                  sqs,
-				EnvironmentVariables: environmentVariables,
-				Timeout:              timeout,
+				Name:    handlerName,
+				Source:  absoluteSourceFilePath,
+				Http:    http,
+				Sqs:     sqs,
+				Timeout: timeout,
 			})
 		}
 	}
