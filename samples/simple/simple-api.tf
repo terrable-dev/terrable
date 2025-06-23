@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 terraform {
-  required_version = ">= 1.9.2"
+  required_version = ">= 1.9.0"
 }
 
 resource "aws_sqs_queue" "test_queue" {
@@ -11,10 +11,10 @@ resource "aws_sqs_queue" "test_queue" {
 }
 
 module "simple_api" {
-  source = "../../../terraform-aws-terrable-api"
+  source = "terrable-dev/terrable-api/aws"
   api_name = "simple-api"
 
-  global_environment_variables = {
+  environment_variables = {
     GLOBAL_ENV = "global-env-var"
   }
 
@@ -28,9 +28,6 @@ module "simple_api" {
   handlers = {
     EchoHandler: {
         source = "./src/Echo.ts"
-        environment_variables = {
-          ECHO_ENV = "echo-env"
-        }
         http = {
           GET = "/",
           POST = "/",
@@ -49,20 +46,8 @@ module "simple_api" {
     # Echo Handler with some variables that should be overwritten by the .env file
     EchoEnvTest: {
         source = "./src/Echo.ts"
-        environment_variables = {
-          ENV_FILE_OVERRIDE = "SHOULD_NOT_ECHO"
-        }
         http = {
           GET = "/echo-env-test"
-        }
-    },
-
-
-    # Echo Handler with no local environment variables
-    EchoHandlerNoLocalEnv: {
-        source = "./src/Echo.ts"
-        http = {
-          GET = "/echo-no-env"
         }
     },
     
