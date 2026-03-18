@@ -1,0 +1,29 @@
+[
+  {
+    "label": "Launch Package (Go)",
+    "adapter": "Delve",
+    "request": "launch",
+    "mode": "debug",
+    "program": ".",
+    "args": [
+      "offline",
+      "-file",
+      "./samples/simple/simple-api.tf",
+      "-module",
+      "simple_api",
+      "-envfile",
+      "./samples/simple/.env.sample",
+    ],
+  },
+  {
+    "label": "Attach Node",
+    "adapter": "JavaScript",
+    "type": "node",
+    "request": "attach",
+    "port": 9229,
+    "address": "127.0.0.1",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "outFiles": ["$ZED_WORKTREE_ROOT/.terrable/**/*.js"],
+    "skipFiles": ["<node_internals>/**"],
+  },
+]
