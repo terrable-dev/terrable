@@ -1,8 +1,22 @@
-import { DoPromise } from "./Utils";
-
 const handler = async (event) => {
-    console.log('SQS: ', JSON.stringify(event));
-    await DoPromise(300);
+    const [record] = event.Records;
+
+    return {
+        statusCode: 200,
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            recordCount: event.Records.length,
+            firstRecord: {
+                body: record.body,
+                eventSource: record.eventSource,
+                eventSourceARN: record.eventSourceARN,
+                awsRegion: record.awsRegion,
+                approximateReceiveCount: record.attributes.ApproximateReceiveCount,
+            },
+        }),
+    }
 }
 
 export { handler };

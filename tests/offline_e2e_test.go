@@ -43,6 +43,14 @@ type builtBinaryInfo struct {
 	tempDir string
 }
 
+type readinessCheck struct {
+	method         string
+	path           string
+	expectedStatus int
+	body           string
+	headers        map[string]string
+}
+
 func (b *safeBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -75,7 +83,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestOfflineCoreRequests(t *testing.T) {
-	withTestServer(t, "samples/integration/core/offline.tf", "offline_core", "samples/integration/core/.env.sample", func() {
+	withTestServer(t, "samples/integration/core/offline.tf", "offline_core", "samples/integration/core/.env.sample", []readinessCheck{
+		{method: http.MethodGet, path: "/", expectedStatus: http.StatusOK},
+		{method: http.MethodPost, path: "/", expectedStatus: http.StatusOK},
+		{method: http.MethodGet, path: "/echo-env-test", expectedStatus: http.StatusOK},
+		{method: http.MethodGet, path: "/collision1", expectedStatus: http.StatusOK},
+		{method: http.MethodPost, path: "/_sqs/SqsHandler", expectedStatus: http.StatusOK, body: "readiness"},
+	}, func() {
 		t.Run("echo GET request", func(t *testing.T) {
 			response := mustRequest(t, http.MethodGet, "/", nil, nil)
 
@@ -151,14 +165,17 @@ func TestOfflineCoreRequests(t *testing.T) {
 			}
 		})
 
-		t.Run("exposes SQS handler endpoint", func(t *testing.T) {
-			response := mustRequest(t, http.MethodPost, "/_sqs/SqsHandler", nil, strings.NewReader(""))
+		t.Run("builds an SQS-style event for queue handlers", func(t *testing.T) {
+			response := mustRequest(t, http.MethodPost, "/_sqs/SqsHandler", nil, strings.NewReader("hello queue"))
 
 			response.assertStatus(t, http.StatusOK)
-
-			if response.duration < 300*time.Millisecond {
-				t.Fatalf("expected SQS request to take at least 300ms, took %s", response.duration)
-			}
+			response.assertHeader(t, "Content-Type", "application/json")
+			response.assertJSONNumberAtLeast(t, "recordCount", 1)
+			response.assertJSONValue(t, "firstRecord.body", "hello queue")
+			response.assertJSONValue(t, "firstRecord.eventSource", "aws:sqs")
+			response.assertJSONValue(t, "firstRecord.eventSourceARN", "arn:aws:sqs:eu-west-1:000000000000:SqsHandler")
+			response.assertJSONValue(t, "firstRecord.awsRegion", "eu-west-1")
+			response.assertJSONValue(t, "firstRecord.approximateReceiveCount", "1")
 		})
 
 		t.Run("timeout request does not break later requests", func(t *testing.T) {
@@ -182,7 +199,18 @@ func TestOfflineCoreRequests(t *testing.T) {
 }
 
 func TestOfflineRESTAPICORSRequests(t *testing.T) {
-	withTestServer(t, "samples/integration/rest-api-cors/offline.tf", "rest_api_cors", "", func() {
+	withTestServer(t, "samples/integration/rest-api-cors/offline.tf", "rest_api_cors", "", []readinessCheck{
+		{method: http.MethodGet, path: "/", expectedStatus: http.StatusOK},
+		{
+			method:         http.MethodOptions,
+			path:           "/echo-callback",
+			expectedStatus: http.StatusNoContent,
+			headers: map[string]string{
+				"Origin":                        "https://app.example.com",
+				"Access-Control-Request-Method": "GET",
+			},
+		},
+	}, func() {
 		t.Run("applies CORS response headers", func(t *testing.T) {
 			headers := map[string]string{
 				"Origin": "https://app.example.com",
@@ -267,10 +295,10 @@ func buildTestBinary() (*builtBinaryInfo, error) {
 	}, nil
 }
 
-func withTestServer(t *testing.T, configPath, moduleName, envFilePath string, fn func()) {
+func withTestServer(t *testing.T, configPath, moduleName, envFilePath string, checks []readinessCheck, fn func()) {
 	t.Helper()
 
-	server, err := startTestServer(configPath, moduleName, envFilePath)
+	server, err := startTestServer(configPath, moduleName, envFilePath, checks)
 	if err != nil {
 		t.Fatalf("failed to start offline test server: %v", err)
 	}
@@ -286,7 +314,7 @@ func withTestServer(t *testing.T, configPath, moduleName, envFilePath string, fn
 	fn()
 }
 
-func startTestServer(configPath, moduleName, envFilePath string) (*testServer, error) {
+func startTestServer(configPath, moduleName, envFilePath string, checks []readinessCheck) (*testServer, error) {
 	rootDir, err := repoRoot()
 	if err != nil {
 		return nil, err
@@ -342,7 +370,7 @@ func startTestServer(configPath, moduleName, envFilePath string) (*testServer, e
 		waitCh:  waitCh,
 	}
 
-	if err := waitForServer(server, serverStartupTimeout); err != nil {
+	if err := waitForServer(server, checks, serverStartupTimeout); err != nil {
 		_ = server.Stop()
 		return nil, err
 	}
@@ -370,7 +398,7 @@ func (s *testServer) Stop() error {
 	}
 }
 
-func waitForServer(server *testServer, timeout time.Duration) error {
+func waitForServer(server *testServer, checks []readinessCheck, timeout time.Duration) error {
 	client := &http.Client{Timeout: 2 * time.Second}
 	deadline := time.Now().Add(timeout)
 
@@ -381,18 +409,45 @@ func waitForServer(server *testServer, timeout time.Duration) error {
 		default:
 		}
 
-		response, err := client.Get(server.baseURL + "/")
-		if err == nil {
-			response.Body.Close()
-			if response.StatusCode == http.StatusOK {
-				return nil
-			}
+		ready, err := runReadinessChecks(client, server.baseURL, checks)
+		if err == nil && ready {
+			return nil
 		}
 
 		time.Sleep(250 * time.Millisecond)
 	}
 
 	return fmt.Errorf("offline server did not become ready within %s\nserver output:\n%s", timeout, server.output.String())
+}
+
+func runReadinessChecks(client *http.Client, baseURL string, checks []readinessCheck) (bool, error) {
+	for _, check := range checks {
+		var body io.Reader
+		if check.body != "" {
+			body = strings.NewReader(check.body)
+		}
+
+		request, err := http.NewRequest(check.method, baseURL+check.path, body)
+		if err != nil {
+			return false, err
+		}
+
+		for key, value := range check.headers {
+			request.Header.Set(key, value)
+		}
+
+		response, err := client.Do(request)
+		if err != nil {
+			return false, nil
+		}
+		response.Body.Close()
+
+		if response.StatusCode != check.expectedStatus {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func mustRequest(t *testing.T, method, path string, headers map[string]string, body io.Reader) httpResponse {
