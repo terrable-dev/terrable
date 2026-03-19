@@ -135,7 +135,7 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 			return nil, fmt.Errorf("error parsing http_api configuration: %w", err)
 		}
 
-		terrableConfig.HTTPAPI = parsedHTTPAPI
+		terrableConfig.HttpApi = parsedHTTPAPI
 	}
 
 	if restAPI, ok := moduleContent.Attributes["rest_api"]; ok {
@@ -149,7 +149,7 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 			return nil, fmt.Errorf("error parsing rest_api configuration: %w", err)
 		}
 
-		terrableConfig.RESTAPI = parsedRESTAPI
+		terrableConfig.RestApi = parsedRESTAPI
 	}
 
 	if handlers, ok := moduleContent.Attributes["handlers"]; ok {
@@ -221,23 +221,23 @@ func parseAPIGatewayConfig(apiConfig cty.Value) (*config.APIGatewayConfig, error
 	}
 
 	if ok && !corsConfig.IsNull() {
-		parsedCORSConfig, err := parseCORSConfig(corsConfig)
+		parsedCORSConfig, err := parseCorsConfig(corsConfig)
 		if err != nil {
 			return nil, err
 		}
 
-		parsedConfig.CORS = parsedCORSConfig
+		parsedConfig.Cors = parsedCORSConfig
 	}
 
 	return parsedConfig, nil
 }
 
-func parseCORSConfig(corsConfig cty.Value) (*config.CORSConfig, error) {
+func parseCorsConfig(corsConfig cty.Value) (*config.CorsConfig, error) {
 	if corsConfig.IsNull() {
 		return nil, nil
 	}
 
-	parsedConfig := &config.CORSConfig{}
+	parsedConfig := &config.CorsConfig{}
 	corsConfigMap := corsConfig.AsValueMap()
 
 	if allowOrigins, ok := corsConfigMap["allow_origins"]; ok {

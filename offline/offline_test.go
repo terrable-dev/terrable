@@ -12,8 +12,8 @@ import (
 
 func TestPrintConfig(t *testing.T) {
 	testConfig := config.TerrableConfig{
-		HTTPAPI: &config.APIGatewayConfig{
-			CORS: &config.CORSConfig{
+		HttpApi: &config.APIGatewayConfig{
+			Cors: &config.CorsConfig{
 				AllowOrigins: []string{"*"},
 			},
 		},

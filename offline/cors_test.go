@@ -11,8 +11,8 @@ import (
 
 func TestBuildImplicitOptionsRoutes(t *testing.T) {
 	terrableConfig := &config.TerrableConfig{
-		HTTPAPI: &config.APIGatewayConfig{
-			CORS: &config.CORSConfig{
+		HttpApi: &config.APIGatewayConfig{
+			Cors: &config.CorsConfig{
 				AllowMethods: []string{"get", "post", "options"},
 			},
 		},
@@ -57,8 +57,8 @@ func TestBuildImplicitOptionsRoutes(t *testing.T) {
 
 func TestRegisterImplicitOptionsRoutes(t *testing.T) {
 	terrableConfig := &config.TerrableConfig{
-		HTTPAPI: &config.APIGatewayConfig{
-			CORS: &config.CORSConfig{
+		HttpApi: &config.APIGatewayConfig{
+			Cors: &config.CorsConfig{
 				AllowOrigins:     []string{"https://app.example.com"},
 				AllowMethods:     []string{"GET", "POST"},
 				AllowHeaders:     []string{"content-type", "authorization"},
@@ -113,8 +113,8 @@ func TestRegisterImplicitOptionsRoutes(t *testing.T) {
 
 func TestCORSMiddlewareAppliesHeadersToStandardResponses(t *testing.T) {
 	terrableConfig := &config.TerrableConfig{
-		RESTAPI: &config.APIGatewayConfig{
-			CORS: &config.CORSConfig{
+		RestApi: &config.APIGatewayConfig{
+			Cors: &config.CorsConfig{
 				AllowOrigins:     []string{"https://app.example.com"},
 				ExposeHeaders:    []string{"x-request-id"},
 				AllowCredentials: true,

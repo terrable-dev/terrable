@@ -17,7 +17,7 @@ type implicitOptionsRoute struct {
 }
 
 func registerCORSMiddleware(r *mux.Router, terrableConfig *config.TerrableConfig) {
-	corsConfig := terrableConfig.EffectiveCORSConfig()
+	corsConfig := terrableConfig.EffectiveCorsConfig()
 	if corsConfig == nil {
 		return
 	}
@@ -31,7 +31,7 @@ func registerCORSMiddleware(r *mux.Router, terrableConfig *config.TerrableConfig
 }
 
 func registerImplicitOptionsRoutes(r *mux.Router, terrableConfig *config.TerrableConfig) {
-	corsConfig := terrableConfig.EffectiveCORSConfig()
+	corsConfig := terrableConfig.EffectiveCorsConfig()
 	if corsConfig == nil {
 		return
 	}
@@ -61,7 +61,7 @@ func registerImplicitOptionsRoutes(r *mux.Router, terrableConfig *config.Terrabl
 }
 
 func buildImplicitOptionsRoutes(terrableConfig *config.TerrableConfig) []implicitOptionsRoute {
-	corsConfig := terrableConfig.EffectiveCORSConfig()
+	corsConfig := terrableConfig.EffectiveCorsConfig()
 	if corsConfig == nil {
 		return nil
 	}
@@ -124,7 +124,7 @@ func resolveAllowedMethods(routeMethods map[string]struct{}, configuredMethods [
 	return allowedMethods
 }
 
-func applyCORSResponseHeaders(w http.ResponseWriter, r *http.Request, corsConfig *config.CORSConfig) {
+func applyCORSResponseHeaders(w http.ResponseWriter, r *http.Request, corsConfig *config.CorsConfig) {
 	allowOrigin := resolveAllowOrigin(r.Header.Get("Origin"), corsConfig)
 	if allowOrigin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
@@ -142,7 +142,7 @@ func applyCORSResponseHeaders(w http.ResponseWriter, r *http.Request, corsConfig
 	}
 }
 
-func resolveAllowOrigin(requestOrigin string, corsConfig *config.CORSConfig) string {
+func resolveAllowOrigin(requestOrigin string, corsConfig *config.CorsConfig) string {
 	if len(corsConfig.AllowOrigins) == 0 {
 		return ""
 	}

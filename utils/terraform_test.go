@@ -179,14 +179,14 @@ func TestParseModuleConfiguration(t *testing.T) {
 			}
 
 			if len(tt.wantHTTPCORSOrigins) > 0 {
-				if assert.NotNil(t, config.HTTPAPI) && assert.NotNil(t, config.HTTPAPI.CORS) {
-					assert.Equal(t, tt.wantHTTPCORSOrigins, config.HTTPAPI.CORS.AllowOrigins)
+				if assert.NotNil(t, config.HttpApi) && assert.NotNil(t, config.HttpApi.Cors) {
+					assert.Equal(t, tt.wantHTTPCORSOrigins, config.HttpApi.Cors.AllowOrigins)
 				}
 			}
 
 			if len(tt.wantRESTCORSOrigins) > 0 {
-				if assert.NotNil(t, config.RESTAPI) && assert.NotNil(t, config.RESTAPI.CORS) {
-					assert.Equal(t, tt.wantRESTCORSOrigins, config.RESTAPI.CORS.AllowOrigins)
+				if assert.NotNil(t, config.RestApi) && assert.NotNil(t, config.RestApi.Cors) {
+					assert.Equal(t, tt.wantRESTCORSOrigins, config.RestApi.Cors.AllowOrigins)
 				}
 			}
 		})
