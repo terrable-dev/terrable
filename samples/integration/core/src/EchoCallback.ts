@@ -13,7 +13,6 @@ const handler = (event, context, callback) => {
                 context: context,
             }),
         })
-    
     })
 }
 
