@@ -12,6 +12,11 @@ import (
 
 func TestPrintConfig(t *testing.T) {
 	testConfig := config.TerrableConfig{
+		HttpApi: &config.APIGatewayConfig{
+			Cors: &config.CorsConfig{
+				AllowOrigins: []string{"*"},
+			},
+		},
 		Handlers: []config.HandlerMapping{
 			{
 				Name:   "Handler1",
@@ -58,8 +63,10 @@ func TestPrintConfig(t *testing.T) {
 	// Test for minimal required content without formatting
 	expectedEndpoints := []string{
 		"GET           http://localhost:1234/path1            (Handler1) ",
+		"OPTIONS       http://localhost:1234/path1            (CORS)",
 		"POST          http://localhost:1234/path1            (Handler1) ",
 		"GET           http://localhost:1234/path2            (Handler2) ",
+		"OPTIONS       http://localhost:1234/path2            (CORS)",
 		"POST          http://localhost:1234/_sqs/SqsHandler  (SqsHandler)",
 	}
 

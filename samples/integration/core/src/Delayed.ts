@@ -1,6 +1,6 @@
 import { DoPromise } from "./Utils";
 
-const handler = async (event) => {
+const handler = async () => {
     const before = new Date().getTime();
 
     await DoPromise(2000);

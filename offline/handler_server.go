@@ -24,17 +24,9 @@ type HandlerOutput struct {
 	err           error
 }
 
-func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
+func RegisterHandler(handlerInstance *HandlerInstance, r *mux.Router, np *NodeProcess) {
 	inputFiles := handlerInstance.CompileHandler()
 	go handlerInstance.WatchForChanges(inputFiles)
-
-	np, err := GetNodeProcess()
-
-	if err != nil {
-		panic(err)
-	}
-
-	defer np.Close()
 
 	handleRequestFunc := func(w http.ResponseWriter, r *http.Request, code string) {
 		handlerExecutionMutex.Lock()
@@ -72,8 +64,6 @@ func ServeHandler(handlerInstance *HandlerInstance, r *mux.Router) {
 			handleRequestFunc(w, r, code)
 		}).Methods("POST")
 	}
-
-	np.cmd.Wait()
 }
 
 func sendResult(startTime time.Time, w http.ResponseWriter, outputChannel chan HandlerOutput) {

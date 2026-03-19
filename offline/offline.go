@@ -4,18 +4,16 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"log"
-	"net"
-	"net/http"
-	"os"
-	"strings"
-	"sync"
-
 	"github.com/fatih/color"
 	"github.com/gorilla/mux"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/utils"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"strings"
 )
 
 var DebugConfig config.DebugConfig
@@ -44,9 +42,6 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 
 	printConfig(*terrableConfig, activePort)
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
 	// Read environment variables from the specified env file (if provided)
 	var fileEnvVars map[string]string
 	if envFile != "" {
@@ -57,6 +52,8 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 	}
 
 	r := mux.NewRouter()
+	registerCORSMiddleware(r, terrableConfig)
+	registerImplicitOptionsRoutes(r, terrableConfig)
 
 	// Not Found handlers
 	r.MethodNotAllowedHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,18 +68,18 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 		w.Write([]byte(`{"message": "Not Found"}`))
 	})
 
-	// Start compiling and serving each handler
+	np, err := GetNodeProcess()
+	if err != nil {
+		return err
+	}
+	defer np.Close()
+
+	// Compile and register each handler before serving requests.
 	for _, handler := range terrableConfig.Handlers {
-		wg.Add(1)
-
-		go func(handler config.HandlerMapping) {
-			defer wg.Done()
-
-			ServeHandler(&HandlerInstance{
-				handlerConfig: handler,
-				envVars:       mergeEnvMaps(terrableConfig.EnvironmentVariables, mergeEnvMaps(terrableConfig.EnvironmentVariables, fileEnvVars)),
-			}, r)
-		}(handler)
+		RegisterHandler(&HandlerInstance{
+			handlerConfig: handler,
+			envVars:       mergeEnvMaps(terrableConfig.EnvironmentVariables, mergeEnvMaps(terrableConfig.EnvironmentVariables, fileEnvVars)),
+		}, r, np)
 	}
 
 	server := &http.Server{
@@ -174,6 +171,20 @@ func printConfig(config config.TerrableConfig, port int) {
 				handlerNameColor(fmt.Sprintf("(%s)", handler.Name)),
 			})
 		}
+	}
+
+	for _, route := range buildImplicitOptionsRoutes(&config) {
+		totalEndpoints++
+
+		url := fmt.Sprintf("%s%s",
+			hostColor(fmt.Sprintf("http://localhost:%d", port)),
+			pathColor(route.Path))
+
+		t.AppendRow(table.Row{
+			methodColor(http.MethodOptions),
+			url,
+			handlerNameColor("(CORS)"),
+		})
 	}
 
 	if hasSqsQueues {

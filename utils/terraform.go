@@ -92,6 +92,8 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 		Attributes: []hcl.AttributeSchema{
 			{Name: "handlers", Required: false},
 			{Name: "environment_variables", Required: false},
+			{Name: "http_api", Required: false},
+			{Name: "rest_api", Required: false},
 			{Name: "timeout", Required: false},
 		},
 	})
@@ -120,6 +122,34 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 		} else {
 			return nil, fmt.Errorf("global timeout must be a number")
 		}
+	}
+
+	if httpAPI, ok := moduleContent.Attributes["http_api"]; ok {
+		httpAPIValue, diags := httpAPI.Expr.Value(nil)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("error parsing http_api configuration: %s", diags.Error())
+		}
+
+		parsedHTTPAPI, err := parseAPIGatewayConfig(httpAPIValue)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing http_api configuration: %w", err)
+		}
+
+		terrableConfig.HttpApi = parsedHTTPAPI
+	}
+
+	if restAPI, ok := moduleContent.Attributes["rest_api"]; ok {
+		restAPIValue, diags := restAPI.Expr.Value(nil)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("error parsing rest_api configuration: %s", diags.Error())
+		}
+
+		parsedRESTAPI, err := parseAPIGatewayConfig(restAPIValue)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing rest_api configuration: %w", err)
+		}
+
+		terrableConfig.RestApi = parsedRESTAPI
 	}
 
 	if handlers, ok := moduleContent.Attributes["handlers"]; ok {
@@ -175,6 +205,119 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 	}
 
 	return &terrableConfig, nil
+}
+
+func parseAPIGatewayConfig(apiConfig cty.Value) (*config.APIGatewayConfig, error) {
+	if apiConfig.IsNull() {
+		return nil, nil
+	}
+
+	parsedConfig := &config.APIGatewayConfig{}
+	apiConfigMap := apiConfig.AsValueMap()
+
+	corsConfig, ok := apiConfigMap["cors_configuration"]
+	if !ok {
+		corsConfig, ok = apiConfigMap["cors"]
+	}
+
+	if ok && !corsConfig.IsNull() {
+		parsedCORSConfig, err := parseCorsConfig(corsConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		parsedConfig.Cors = parsedCORSConfig
+	}
+
+	return parsedConfig, nil
+}
+
+func parseCorsConfig(corsConfig cty.Value) (*config.CorsConfig, error) {
+	if corsConfig.IsNull() {
+		return nil, nil
+	}
+
+	parsedConfig := &config.CorsConfig{}
+	corsConfigMap := corsConfig.AsValueMap()
+
+	if allowOrigins, ok := corsConfigMap["allow_origins"]; ok {
+		parsedAllowOrigins, err := parseStringList(allowOrigins, "allow_origins")
+		if err != nil {
+			return nil, err
+		}
+
+		parsedConfig.AllowOrigins = parsedAllowOrigins
+	}
+
+	if allowMethods, ok := corsConfigMap["allow_methods"]; ok {
+		parsedAllowMethods, err := parseStringList(allowMethods, "allow_methods")
+		if err != nil {
+			return nil, err
+		}
+
+		parsedConfig.AllowMethods = parsedAllowMethods
+	}
+
+	if allowHeaders, ok := corsConfigMap["allow_headers"]; ok {
+		parsedAllowHeaders, err := parseStringList(allowHeaders, "allow_headers")
+		if err != nil {
+			return nil, err
+		}
+
+		parsedConfig.AllowHeaders = parsedAllowHeaders
+	}
+
+	if exposeHeaders, ok := corsConfigMap["expose_headers"]; ok {
+		parsedExposeHeaders, err := parseStringList(exposeHeaders, "expose_headers")
+		if err != nil {
+			return nil, err
+		}
+
+		parsedConfig.ExposeHeaders = parsedExposeHeaders
+	}
+
+	if allowCredentials, ok := corsConfigMap["allow_credentials"]; ok {
+		if allowCredentials.Type() != cty.Bool {
+			return nil, fmt.Errorf("allow_credentials must be a boolean")
+		}
+
+		parsedConfig.AllowCredentials = allowCredentials.True()
+	}
+
+	if maxAge, ok := corsConfigMap["max_age"]; ok {
+		if maxAge.Type() != cty.Number {
+			return nil, fmt.Errorf("max_age must be a number")
+		}
+
+		parsedMaxAge, _ := maxAge.AsBigFloat().Int64()
+		parsedConfig.MaxAge = int(parsedMaxAge)
+	}
+
+	return parsedConfig, nil
+}
+
+func parseStringList(value cty.Value, fieldName string) ([]string, error) {
+	if value.IsNull() {
+		return nil, nil
+	}
+
+	if !value.CanIterateElements() {
+		return nil, fmt.Errorf("%s must be a list of strings", fieldName)
+	}
+
+	var values []string
+	iterator := value.ElementIterator()
+
+	for iterator.Next() {
+		_, element := iterator.Element()
+		if element.Type() != cty.String {
+			return nil, fmt.Errorf("%s must be a list of strings", fieldName)
+		}
+
+		values = append(values, element.AsString())
+	}
+
+	return values, nil
 }
 
 func getAbsoluteHandlerSourcePath(basePath string, sourcePath string) (string, error) {
