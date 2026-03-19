@@ -57,6 +57,8 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 	}
 
 	r := mux.NewRouter()
+	registerCORSMiddleware(r, terrableConfig)
+	registerImplicitOptionsRoutes(r, terrableConfig)
 
 	// Not Found handlers
 	r.MethodNotAllowedHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -174,6 +176,20 @@ func printConfig(config config.TerrableConfig, port int) {
 				handlerNameColor(fmt.Sprintf("(%s)", handler.Name)),
 			})
 		}
+	}
+
+	for _, route := range buildImplicitOptionsRoutes(&config) {
+		totalEndpoints++
+
+		url := fmt.Sprintf("%s%s",
+			hostColor(fmt.Sprintf("http://localhost:%d", port)),
+			pathColor(route.Path))
+
+		t.AppendRow(table.Row{
+			methodColor(http.MethodOptions),
+			url,
+			handlerNameColor("(CORS)"),
+		})
 	}
 
 	if hasSqsQueues {

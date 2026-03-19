@@ -10,11 +10,13 @@ import (
 
 func TestParseModuleConfiguration(t *testing.T) {
 	tests := []struct {
-		name               string
-		hclContent         string
-		wantGlobalTimeout  int
-		wantHandlerTimeout int
-		wantErr            bool
+		name                string
+		hclContent          string
+		wantGlobalTimeout   int
+		wantHandlerTimeout  int
+		wantHTTPCORSOrigins []string
+		wantRESTCORSOrigins []string
+		wantErr             bool
 	}{
 		{
 			name: "uses default timeout when not specified",
@@ -74,6 +76,61 @@ func TestParseModuleConfiguration(t *testing.T) {
 			wantErr:            false,
 		},
 		{
+			name: "parses HTTP API cors_configuration",
+			hclContent: `
+                module "test" {
+                    http_api = {
+                        cors_configuration = {
+                            allow_origins     = ["https://app.example.com"]
+                            allow_methods     = ["GET", "POST"]
+                            allow_headers     = ["content-type"]
+                            expose_headers    = ["x-request-id"]
+                            allow_credentials = true
+                            max_age           = 600
+                        }
+                    }
+
+                    handlers = {
+                        TestHandler = {
+                            source = "./test.ts"
+                            http = {
+                                GET = "/test"
+                            }
+                        }
+                    }
+                }
+            `,
+			wantGlobalTimeout:   DefaultTimeout,
+			wantHandlerTimeout:  DefaultTimeout,
+			wantHTTPCORSOrigins: []string{"https://app.example.com"},
+			wantErr:             false,
+		},
+		{
+			name: "parses REST API cors shorthand",
+			hclContent: `
+                module "test" {
+                    rest_api = {
+                        cors = {
+                            allow_origins = ["https://example.com"]
+                        }
+                    }
+
+                    handlers = {
+                        TestHandler = {
+                            source = "./test.ts"
+                            http = {
+                                GET = "/test"
+                            }
+                        }
+                    }
+                }
+            `,
+			wantGlobalTimeout:   DefaultTimeout,
+			wantHandlerTimeout:  DefaultTimeout,
+			wantRESTCORSOrigins: []string{"https://example.com"},
+			wantErr:             false,
+		},
+		{
 			name: "invalid timeout value returns error",
 			hclContent: `
                 module "test" {
@@ -119,6 +176,18 @@ func TestParseModuleConfiguration(t *testing.T) {
 
 			if len(config.Handlers) > 0 {
 				assert.Equal(t, tt.wantHandlerTimeout, config.Handlers[0].Timeout, "Handler timeout mismatch")
+			}
+
+			if len(tt.wantHTTPCORSOrigins) > 0 {
+				if assert.NotNil(t, config.HTTPAPI) && assert.NotNil(t, config.HTTPAPI.CORS) {
+					assert.Equal(t, tt.wantHTTPCORSOrigins, config.HTTPAPI.CORS.AllowOrigins)
+				}
+			}
+
+			if len(tt.wantRESTCORSOrigins) > 0 {
+				if assert.NotNil(t, config.RESTAPI) && assert.NotNil(t, config.RESTAPI.CORS) {
+					assert.Equal(t, tt.wantRESTCORSOrigins, config.RESTAPI.CORS.AllowOrigins)
+				}
 			}
 		})
 	}
