@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     
 jobs:
-  hurl-tests:
+  offline-e2e-tests:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
@@ -16,26 +16,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Start Terrable
-        working-directory: ./tests
-        run: |-
-          bash ./_start.sh &
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
 
-      - name: Install Hurl
-        run: |
-          VERSION=6.0.0
-          curl --location --remote-name https://github.com/Orange-OpenSource/hurl/releases/download/$VERSION/hurl_${VERSION}_amd64.deb
-          sudo apt update && sudo apt install ./hurl_${VERSION}_amd64.deb
-      
-      - name: Wait for API to be ready
-        run: |
-          timeout 60s bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' 127.0.0.1:8081)" != "200" ]]; do sleep 2; done' || false
-  
-      - name: Run Hurl tests
-        run: |
-          hurl --test --glob *.hurl
-        working-directory: ./tests/requests
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Stop API
-        run: pkill terrable
-        if: always()
+      - name: Run offline end-to-end tests
+        run: go test -tags=e2e -v ./tests
