@@ -27,33 +27,39 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.generate_token.outputs.token }}
 
-      - name: Read version from file
-        id: version
+      - name: Read build metadata
+        id: build_info
         run: |
-          VERSION=$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' terrable_build | head -n1)
-          if [[ -z "$VERSION" ]]; then
-            echo "Failed to read version from terrable_build" >&2
+          bash ./scripts/read_build_info.sh >> "$GITHUB_OUTPUT"
+
+      - name: Reject preview-tag on main
+        run: |
+          if [[ -n "${{ steps.build_info.outputs.preview_tag }}" ]]; then
+            echo "preview-tag must be empty on main releases." >&2
             exit 1
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Check whether tag already exists
+      - name: Check whether stable tag already exists
         id: tag
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
+          TAG="v${{ steps.build_info.outputs.version }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            exit 0
+            EXISTING_COMMIT=$(git rev-list -n1 "$TAG")
+            if [[ "$EXISTING_COMMIT" == "$GITHUB_SHA" ]]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Tag $TAG already exists at $EXISTING_COMMIT. Bump terrable_build version before releasing again." >&2
+            exit 1
           fi
-          echo "exists=false" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
-        if: ${{ steps.tag.outputs.exists != 'true' }}
+        if: ${{ steps.tag.outputs.skip != 'true' }}
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
         run: |
           git config user.name goreleaserbot
           git config user.email bot@goreleaser.com
-          git tag -a v${{ steps.version.outputs.version }} -m "Version ${{ steps.version.outputs.version }}"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git v${{ steps.version.outputs.version }}
-        
+          git tag -a v${{ steps.build_info.outputs.version }} -m "Version ${{ steps.build_info.outputs.version }}"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git v${{ steps.build_info.outputs.version }}

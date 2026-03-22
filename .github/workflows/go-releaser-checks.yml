@@ -16,15 +16,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read version from file
-        id: version
+      - name: Read build metadata
+        id: build_info
         run: |
-          VERSION=$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' terrable_build | head -n1)
-          if [[ -z "$VERSION" ]]; then
-            echo "Failed to read version from terrable_build" >&2
+          bash ./scripts/read_build_info.sh >> "$GITHUB_OUTPUT"
+
+      - name: Reject preview-tag in pull requests to main
+        if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
+        run: |
+          if [[ -n "${{ steps.build_info.outputs.preview_tag }}" ]]; then
+            echo "preview-tag must be empty for pull requests targeting main." >&2
             exit 1
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Check GoReleaser
         uses: goreleaser/goreleaser-action@v7
@@ -33,7 +36,8 @@ jobs:
           version: '~> v2'
           args: check
         env:
-          TERRABLE_BUILD_VERSION: ${{ steps.version.outputs.version }}
+          TERRABLE_BUILD_VERSION: ${{ steps.build_info.outputs.version }}
+          TERRABLE_BUILD_PREVIEW_TAG: ${{ steps.build_info.outputs.preview_tag }}
   
       - name: GoReleaser dry-run
         uses: goreleaser/goreleaser-action@v7
@@ -42,5 +46,6 @@ jobs:
           version: '~> v2'
           args: build --snapshot
         env:
-          TERRABLE_BUILD_VERSION: ${{ steps.version.outputs.version }}
+          TERRABLE_BUILD_VERSION: ${{ steps.build_info.outputs.version }}
+          TERRABLE_BUILD_PREVIEW_TAG: ${{ steps.build_info.outputs.preview_tag }}
   

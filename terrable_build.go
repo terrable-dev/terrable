@@ -27,7 +27,7 @@ func buildInfo() map[string]string {
 
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
+			value := normalizeBuildValue(parts[1])
 			config[key] = value
 		}
 	}
@@ -40,9 +40,27 @@ func buildVersion() string {
 		return version
 	}
 
-	if fileVersion := buildInfo()["version"]; fileVersion != "" {
+	info := buildInfo()
+
+	if fileVersion := info["version"]; fileVersion != "" {
+		if previewTag := info["preview-tag"]; previewTag != "" {
+			return fileVersion + "-" + previewTag
+		}
+
 		return fileVersion
 	}
 
 	return "dev"
+}
+
+func normalizeBuildValue(value string) string {
+	value = strings.TrimSpace(value)
+
+	if len(value) >= 2 {
+		if (value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'') {
+			return value[1 : len(value)-1]
+		}
+	}
+
+	return value
 }

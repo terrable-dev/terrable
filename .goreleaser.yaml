@@ -20,7 +20,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  version_template: "{{ .Env.TERRABLE_BUILD_VERSION }}-snapshot-{{ .ShortCommit }}"
+  version_template: "{{ .Env.TERRABLE_BUILD_VERSION }}{{ if .Env.TERRABLE_BUILD_PREVIEW_TAG }}-{{ .Env.TERRABLE_BUILD_PREVIEW_TAG }}{{ end }}-snapshot-{{ .ShortCommit }}"
 
 release:
   prerelease: auto
@@ -51,6 +51,7 @@ scoops:
   - name: terrable
     url_template: "https://github.com/terrable-dev/terrable/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     directory: bucket
+    skip_upload: auto
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com

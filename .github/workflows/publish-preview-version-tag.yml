@@ -1,12 +1,11 @@
 name: Publish Preview Version Tag
 
 on:
-  workflow_dispatch:
-    inputs:
-      suffix:
-        description: Optional prerelease suffix like rc.1 or preview.42.
-        required: false
-        type: string
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - 'terrable_build'
 
 jobs:
   publish-preview-version-tag:
@@ -15,51 +14,63 @@ jobs:
       contents: write
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Read build metadata
+        id: build_info
+        run: |
+          bash ./scripts/read_build_info.sh >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether this branch should publish a preview
+        id: preview
+        run: |
+          if [[ -z "${{ steps.build_info.outputs.preview_tag }}" ]]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "No preview-tag set in terrable_build, so no preview tag will be published."
+            exit 0
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
       - name: Generate GitHub App token
+        if: ${{ steps.preview.outputs.publish == 'true' }}
         id: generate_token
         uses: tibdex/github-app-token@v2
         with:
           app_id: ${{ secrets.ACTIONS_APP_ID }}
           private_key: ${{ secrets.ACTIONS_APP_PRIVATE_KEY }}
 
-      - name: Check out repository
+      - name: Check out repository with app token
+        if: ${{ steps.preview.outputs.publish == 'true' }}
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ steps.generate_token.outputs.token }}
 
-      - name: Read version from file
-        id: version
-        run: |
-          VERSION=$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' terrable_build | head -n1)
-          if [[ -z "$VERSION" ]]; then
-            echo "Failed to read version from terrable_build" >&2
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Build prerelease tag name
+      - name: Check whether preview tag already exists
+        if: ${{ steps.preview.outputs.publish == 'true' }}
         id: tag
         run: |
-          SUFFIX="${{ inputs.suffix }}"
-          if [[ -z "$SUFFIX" ]]; then
-            SUFFIX="preview.${GITHUB_RUN_NUMBER}"
-          fi
-          TAG="v${{ steps.version.outputs.version }}-${SUFFIX}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Ensure preview tag does not already exist
-        run: |
-          if git rev-parse "${{ steps.tag.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Tag ${{ steps.tag.outputs.tag }} already exists" >&2
+          TAG="v${{ steps.build_info.outputs.version }}-${{ steps.build_info.outputs.preview_tag }}"
+          echo "name=$TAG" >> "$GITHUB_OUTPUT"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            EXISTING_COMMIT=$(git rev-list -n1 "$TAG")
+            if [[ "$EXISTING_COMMIT" == "$GITHUB_SHA" ]]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Tag $TAG already exists at $EXISTING_COMMIT. Bump preview-tag in terrable_build before publishing a new preview." >&2
             exit 1
           fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Create and push preview tag
+        if: ${{ steps.preview.outputs.publish == 'true' && steps.tag.outputs.skip != 'true' }}
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
         run: |
           git config user.name goreleaserbot
           git config user.email bot@goreleaser.com
-          git tag -a "${{ steps.tag.outputs.tag }}" -m "Preview ${{ steps.tag.outputs.tag }}"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git "${{ steps.tag.outputs.tag }}"
+          git tag -a "${{ steps.tag.outputs.name }}" -m "Preview ${{ steps.tag.outputs.name }}"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git "${{ steps.tag.outputs.name }}"
