@@ -60,7 +60,7 @@ homebrew_casks:
   - name: terrable
     url:
       template: "https://github.com/terrable-dev/terrable/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    directory: Formula
+    directory: Casks
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
