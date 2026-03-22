@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// These are set by GoReleaser via ldflags on tagged and snapshot builds.
+var version string
+
 //go:embed terrable_build
 var configFile string
 
@@ -30,4 +33,16 @@ func buildInfo() map[string]string {
 	}
 
 	return config
+}
+
+func buildVersion() string {
+	if version != "" {
+		return version
+	}
+
+	if fileVersion := buildInfo()["version"]; fileVersion != "" {
+		return fileVersion
+	}
+
+	return "dev"
 }

@@ -12,7 +12,7 @@ import (
 func main() {
 	app := &cli.App{
 		Name:    "terrable",
-		Version: buildInfo()["version"],
+		Version: buildVersion(),
 
 		Commands: []*cli.Command{
 			{

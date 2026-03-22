@@ -1,14 +1,15 @@
-name: Publish New Version Tag
+name: Publish Preview Version Tag
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'terrable_build'
+  workflow_dispatch:
+    inputs:
+      suffix:
+        description: Optional prerelease suffix like rc.1 or preview.42.
+        required: false
+        type: string
 
 jobs:
-  update-version-and-tag:
+  publish-preview-version-tag:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -37,23 +38,28 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Check whether tag already exists
+      - name: Build prerelease tag name
         id: tag
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          SUFFIX="${{ inputs.suffix }}"
+          if [[ -z "$SUFFIX" ]]; then
+            SUFFIX="preview.${GITHUB_RUN_NUMBER}"
           fi
-          echo "exists=false" >> "$GITHUB_OUTPUT"
+          TAG="v${{ steps.version.outputs.version }}-${SUFFIX}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Create and push tag
-        if: ${{ steps.tag.outputs.exists != 'true' }}
+      - name: Ensure preview tag does not already exist
+        run: |
+          if git rev-parse "${{ steps.tag.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.tag.outputs.tag }} already exists" >&2
+            exit 1
+          fi
+
+      - name: Create and push preview tag
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
         run: |
           git config user.name goreleaserbot
           git config user.email bot@goreleaser.com
-          git tag -a v${{ steps.version.outputs.version }} -m "Version ${{ steps.version.outputs.version }}"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git v${{ steps.version.outputs.version }}
-        
+          git tag -a "${{ steps.tag.outputs.tag }}" -m "Preview ${{ steps.tag.outputs.tag }}"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git "${{ steps.tag.outputs.tag }}"

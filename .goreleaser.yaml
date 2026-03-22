@@ -19,6 +19,12 @@ signs:
 checksum:
   name_template: "checksums.txt"
 
+snapshot:
+  version_template: "{{ .Env.TERRABLE_BUILD_VERSION }}-snapshot-{{ .ShortCommit }}"
+
+release:
+  prerelease: auto
+
 archives:
   - formats: [ tar.gz ]
     name_template: >-

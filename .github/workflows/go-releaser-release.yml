@@ -5,6 +5,17 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish artifacts. Requires running from a tag.
+        required: true
+        type: boolean
+        default: false
+      homebrew_tap_branch:
+        description: Homebrew tap branch to update for published releases.
+        required: false
+        type: string
+        default: preview
 
 jobs:
   go-releaser-release:
@@ -12,11 +23,38 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      HOMEBREW_TAP_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.homebrew_tap_branch || (github.ref_type == 'tag' && contains(github.ref_name, '-') && 'preview' || 'main') }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Read version from file
+        id: version
+        run: |
+          VERSION=$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' terrable_build | head -n1)
+          if [[ -z "$VERSION" ]]; then
+            echo "Failed to read version from terrable_build" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Select GoReleaser mode
+        id: goreleaser_mode
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.publish }}" != "true" ]]; then
+            echo "args=release --snapshot --clean" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "args=release --clean" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure published releases run from a tag
+        if: ${{ steps.goreleaser_mode.outputs.args == 'release --clean' && github.ref_type != 'tag' }}
+        run: |
+          echo "Published releases must run from a tag. Use workflow_dispatch with publish=false for a branch snapshot build." >&2
+          exit 1
 
       - name: Generate GitHub App token
         id: generate_token
@@ -37,7 +75,8 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean
+          args: ${{ steps.goreleaser_mode.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          TERRABLE_BUILD_VERSION: ${{ steps.version.outputs.version }}
