@@ -20,7 +20,7 @@ checksum:
   name_template: "checksums.txt"
 
 archives:
-  - formats: [ tar.gz ]
+  - formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -30,7 +30,7 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     format_overrides:
       - goos: windows
-        formats: [ zip ]
+        formats: [zip]
 
 changelog:
   sort: asc
@@ -48,7 +48,7 @@ scoops:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    
+
     commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
 
     repository:
@@ -56,11 +56,13 @@ scoops:
       name: scoop
       branch: main
 
-homebrew_casks:
+brews:
   - name: terrable
-    url:
-      template: "https://github.com/terrable-dev/terrable/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    directory: Casks
+    url_template: "https://github.com/terrable-dev/terrable/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    directory: Formula
+    description: "CLI tool for running terrable terraform modules locally"
+    homepage: "https://github.com/terrable-dev/terrable"
+
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
