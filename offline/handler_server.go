@@ -285,7 +285,7 @@ func generateJSCode(envVars, executionPath, eventInputJSON string, timeoutSecond
 
         delete require.cache[require.resolve('%s')];
         var transpiledFunction = require('%s');
-        
+
         var eventInput = %s;
         const endTime = Date.now() + (%d * 1000);
 

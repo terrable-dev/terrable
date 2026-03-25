@@ -4,16 +4,17 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/gorilla/mux"
-	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/terrable-dev/terrable/config"
-	"github.com/terrable-dev/terrable/utils"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/fatih/color"
+	"github.com/gorilla/mux"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/terrable-dev/terrable/config"
+	"github.com/terrable-dev/terrable/utils"
 )
 
 var DebugConfig config.DebugConfig
@@ -205,7 +206,6 @@ func printConfig(config config.TerrableConfig, port int) {
 
 	t.SetOutputMirror(os.Stdout)
 
-	// Check for SQS queues
 	var hasSqsQueues bool
 	var hasScheduledHandlers bool
 	for _, handler := range config.Handlers {
