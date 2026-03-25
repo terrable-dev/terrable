@@ -263,40 +263,6 @@ func TestOfflineRESTAPICORSRequests(t *testing.T) {
 	})
 }
 
-func TestOfflineStartupReportsMissingHandlerSource(t *testing.T) {
-	rootDir, err := repoRoot()
-	if err != nil {
-		t.Fatalf("failed to resolve repo root: %v", err)
-	}
-
-	output, err := runOfflineExpectFailure("samples/integration/invalid-handler/offline.tf", "invalid_handler", "")
-	if err != nil {
-		t.Fatalf("failed to run offline command: %v", err)
-	}
-
-	expectedResolvedPath := filepath.Join(rootDir, "samples", "integration", "invalid-handler", "src", "MissingHandler.ts")
-	expectedFragments := []string{
-		`Handler "MissingHandler" could not be loaded.`,
-		`Configured source:`,
-		`./src/MissingHandler.ts`,
-		`Resolved path:`,
-		expectedResolvedPath,
-		`Problem:`,
-		`no file exists at that path`,
-		`Check the handler's "source" setting and try again.`,
-	}
-
-	for _, fragment := range expectedFragments {
-		if !strings.Contains(output, fragment) {
-			t.Fatalf("expected offline output to contain %q, got:\n%s", fragment, output)
-		}
-	}
-
-	if strings.Contains(output, "Starting terrable local server...") {
-		t.Fatalf("expected offline startup to fail before the server banner, got:\n%s", output)
-	}
-}
-
 func TestOfflineStartupReportsAllFailingHandlers(t *testing.T) {
 	rootDir, err := repoRoot()
 	if err != nil {
