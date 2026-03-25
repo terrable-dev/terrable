@@ -71,6 +71,13 @@ func RegisterHandler(handlerInstance *HandlerInstance, r *mux.Router, np *NodePr
 		}).Methods("POST")
 	}
 
+	if handlerInstance.handlerConfig.Schedule != nil {
+		r.HandleFunc(fmt.Sprintf("/_scheduled/%s", handlerInstance.handlerConfig.Name), func(w http.ResponseWriter, r *http.Request) {
+			code := generateScheduledHandlerRuntimeCode(handlerInstance)
+			handleRequestFunc(w, r, code)
+		}).Methods("POST")
+	}
+
 	return nil
 }
 
@@ -239,6 +246,27 @@ func generateSqsHandlerRuntimeCode(handler *HandlerInstance, r *http.Request) st
 	// Create the SQS event structure
 	eventInput := map[string]interface{}{
 		"Records": []interface{}{message},
+	}
+
+	eventInputJSON, _ := json.Marshal(eventInput)
+	envVars := generateEnvVars(handler)
+	return generateJSCode(string(envVars), handler.GetExecutionPath(), string(eventInputJSON), handler.handlerConfig.Timeout)
+}
+
+func generateScheduledHandlerRuntimeCode(handler *HandlerInstance) string {
+	ruleName := fmt.Sprintf("%s-scheduled", handler.handlerConfig.Name)
+	ruleArn := fmt.Sprintf("arn:aws:events:eu-west-1:000000000000:rule/%s", ruleName)
+
+	eventInput := map[string]interface{}{
+		"version":     "0",
+		"id":          uuid.New().String(),
+		"detail-type": "Scheduled Event",
+		"source":      "aws.events",
+		"account":     "000000000000",
+		"time":        time.Now().UTC().Format(time.RFC3339),
+		"region":      "eu-west-1",
+		"resources":   []string{ruleArn},
+		"detail":      map[string]interface{}{},
 	}
 
 	eventInputJSON, _ := json.Marshal(eventInput)

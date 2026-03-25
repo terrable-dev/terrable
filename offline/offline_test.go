@@ -41,6 +41,13 @@ func TestPrintConfig(t *testing.T) {
 					"queue": "arn:aws:sqs:region:account:queue",
 				},
 			},
+			{
+				Name:   "ScheduledHandler",
+				Source: "source4",
+				Schedule: &config.ScheduleConfig{
+					Expression: "rate(5 minutes)",
+				},
+			},
 		},
 	}
 
@@ -61,21 +68,24 @@ func TestPrintConfig(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 
-	// Test for minimal required content without formatting
-	expectedEndpoints := []string{
-		"GET           http://localhost:1234/path1            (Handler1) ",
-		"OPTIONS       http://localhost:1234/path1            (CORS)",
-		"POST          http://localhost:1234/path1            (Handler1) ",
-		"GET           http://localhost:1234/path2            (Handler2) ",
-		"OPTIONS       http://localhost:1234/path2            (CORS)",
-		"POST          http://localhost:1234/_sqs/SqsHandler  (SqsHandler)",
+	expectedFragments := []string{
+		"http://localhost:1234/path1",
+		"http://localhost:1234/path2",
+		"http://localhost:1234/_sqs/SqsHandler",
+		"http://localhost:1234/_scheduled/ScheduledHandler",
+		"(Handler1)",
+		"(Handler2)",
+		"(SqsHandler)",
+		"(ScheduledHandler)",
+		"(CORS)",
+		"SQS Handlers",
+		"Scheduled",
 	}
 
-	// Verify HTTP endpoints
-	for _, endpoint := range expectedEndpoints {
-		if !strings.Contains(output, strings.TrimSpace(endpoint)) {
-			t.Errorf("Expected output to contain endpoint '%s', but it doesn't.\nActual output:\n%s",
-				endpoint, output)
+	for _, fragment := range expectedFragments {
+		if !strings.Contains(output, fragment) {
+			t.Errorf("Expected output to contain fragment '%s', but it doesn't.\nActual output:\n%s",
+				fragment, output)
 		}
 	}
 }

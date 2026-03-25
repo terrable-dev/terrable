@@ -19,6 +19,24 @@ func TestParseModuleConfiguration(t *testing.T) {
 		wantErr             bool
 	}{
 		{
+			name: "parses handler schedule expression",
+			hclContent: `
+                module "test" {
+                    handlers = {
+                        ScheduledHandler = {
+                            source = "./test.ts"
+                            schedule = {
+                                expression = "rate(5 minutes)"
+                            }
+                        }
+                    }
+                }
+            `,
+			wantGlobalTimeout:  DefaultTimeout,
+			wantHandlerTimeout: DefaultTimeout,
+			wantErr:            false,
+		},
+		{
 			name: "uses default timeout when not specified",
 			hclContent: `
                 module "test" {
@@ -176,6 +194,12 @@ func TestParseModuleConfiguration(t *testing.T) {
 
 			if len(config.Handlers) > 0 {
 				assert.Equal(t, tt.wantHandlerTimeout, config.Handlers[0].Timeout, "Handler timeout mismatch")
+
+				if tt.name == "parses handler schedule expression" {
+					if assert.NotNil(t, config.Handlers[0].Schedule) {
+						assert.Equal(t, "rate(5 minutes)", config.Handlers[0].Schedule.Expression)
+					}
+				}
 			}
 
 			if len(tt.wantHTTPCORSOrigins) > 0 {

@@ -200,7 +200,6 @@ func getListener(port string) (net.Listener, int, error) {
 
 func printConfig(config config.TerrableConfig, port int) {
 	totalEndpoints := 0
-	totalSqsQueues := 0
 
 	t := table.NewWriter()
 
@@ -208,10 +207,14 @@ func printConfig(config config.TerrableConfig, port int) {
 
 	// Check for SQS queues
 	var hasSqsQueues bool
+	var hasScheduledHandlers bool
 	for _, handler := range config.Handlers {
 		if len(handler.Sqs) > 0 {
 			hasSqsQueues = true
-			break
+		}
+
+		if handler.Schedule != nil {
+			hasScheduledHandlers = true
 		}
 	}
 
@@ -260,7 +263,6 @@ func printConfig(config config.TerrableConfig, port int) {
 
 	for _, handler := range config.Handlers {
 		for range handler.Sqs {
-			totalSqsQueues++
 			handlerNameColor := color.New(color.FgHiBlack).SprintFunc()
 
 			url := fmt.Sprintf("%s%s",
@@ -273,6 +275,32 @@ func printConfig(config config.TerrableConfig, port int) {
 				handlerNameColor(fmt.Sprintf("(%s)", handler.Name)),
 			})
 		}
+	}
+
+	if hasScheduledHandlers {
+		t.AppendRow(table.Row{
+			"\nScheduled\n",
+			"",
+			"",
+		})
+	}
+
+	for _, handler := range config.Handlers {
+		if handler.Schedule == nil {
+			continue
+		}
+
+		handlerNameColor := color.New(color.FgHiBlack).SprintFunc()
+
+		url := fmt.Sprintf("%s%s",
+			hostColor(fmt.Sprintf("http://localhost:%d/_scheduled/", port)),
+			pathColor(handler.Name))
+
+		t.AppendRow(table.Row{
+			"POST",
+			url,
+			handlerNameColor(fmt.Sprintf("(%s)", handler.Name)),
+		})
 	}
 
 	color.New(color.FgHiGreen, color.Bold).Println("Starting terrable local server...")
