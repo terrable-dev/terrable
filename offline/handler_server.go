@@ -260,6 +260,15 @@ func generateJSCode(envVars, executionPath, eventInputJSON string, timeoutSecond
         
         var eventInput = %s;
         const endTime = Date.now() + (%d * 1000);
+        const timeoutResponse = {
+            statusCode: 504,
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                message: "Endpoint request timed out"
+            })
+        };
 
         // Create a fake context object
         const context = {
@@ -280,7 +289,7 @@ func generateJSCode(envVars, executionPath, eventInputJSON string, timeoutSecond
         // Create a timeout promise
         const timeoutPromise = new Promise((resolve) => {
             setTimeout(() => {
-				resolve({ statusCode: 504 })
+				resolve(timeoutResponse)
             }, %d * 1000);
         });
 
@@ -308,6 +317,11 @@ func generateJSCode(envVars, executionPath, eventInputJSON string, timeoutSecond
         // Race between execution and timeout
         Promise.race([executionPromise, timeoutPromise])
         .then(result => {
+            if (result === timeoutResponse) {
+                console.log("TERRABLE_RESULT_START:" + JSON.stringify(timeoutResponse) + ":TERRABLE_RESULT_END");
+                return;
+            }
+
 			console.log("TERRABLE_RESULT_START:" + JSON.stringify({ statusCode: 200, ...result }) + ":TERRABLE_RESULT_END");
         })
         .catch(error => {

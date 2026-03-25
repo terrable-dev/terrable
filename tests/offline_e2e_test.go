@@ -178,12 +178,34 @@ func TestOfflineCoreRequests(t *testing.T) {
 			response.assertJSONValue(t, "firstRecord.approximateReceiveCount", "1")
 		})
 
+		t.Run("handler-specific timeout override returns API Gateway timeout response", func(t *testing.T) {
+			timeoutResponse := mustRequest(t, http.MethodGet, "/timeout", nil, nil)
+			timeoutResponse.assertStatus(t, http.StatusGatewayTimeout)
+			timeoutResponse.assertHeader(t, "Content-Type", "application/json")
+			timeoutResponse.assertJSONValue(t, "message", "Endpoint request timed out")
+
+			if timeoutResponse.duration < 900*time.Millisecond || timeoutResponse.duration > 2*time.Second {
+				t.Fatalf("expected handler override timeout to fire after about 1 second, took %s", timeoutResponse.duration)
+			}
+		})
+
 		t.Run("timeout request does not break later requests", func(t *testing.T) {
 			timeoutResponse := mustRequest(t, http.MethodGet, "/timeout", nil, nil)
 			timeoutResponse.assertStatus(t, http.StatusGatewayTimeout)
 
 			followUpResponse := mustRequest(t, http.MethodGet, "/", nil, nil)
 			followUpResponse.assertStatus(t, http.StatusOK)
+		})
+
+		t.Run("global timeout applies when handler does not override it", func(t *testing.T) {
+			timeoutResponse := mustRequest(t, http.MethodGet, "/timeout-global", nil, nil)
+			timeoutResponse.assertStatus(t, http.StatusGatewayTimeout)
+			timeoutResponse.assertHeader(t, "Content-Type", "application/json")
+			timeoutResponse.assertJSONValue(t, "message", "Endpoint request timed out")
+
+			if timeoutResponse.duration < 2900*time.Millisecond || timeoutResponse.duration > 4500*time.Millisecond {
+				t.Fatalf("expected global timeout to fire after about 3 seconds, took %s", timeoutResponse.duration)
+			}
 		})
 
 		t.Run("avoids handler collisions for same source file names", func(t *testing.T) {

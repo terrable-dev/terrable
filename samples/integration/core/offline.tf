@@ -44,6 +44,13 @@ module "offline_core" {
       }
     }
 
+    GlobalTimeoutDelay = {
+      source = "./src/GlobalTimeoutDelay.ts"
+      http = {
+        GET = "/timeout-global"
+      }
+    }
+
     SqsHandler = {
       source = "./src/Sqs.ts"
       sqs = {
