@@ -177,6 +177,19 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				}
 			}
 
+			var schedule *config.ScheduleConfig
+			if scheduleConfig, ok := handlerConfig["schedule"]; ok && !scheduleConfig.IsNull() {
+				scheduleConfigMap := scheduleConfig.AsValueMap()
+				expression, ok := scheduleConfigMap["expression"]
+				if !ok || expression.IsNull() || expression.Type() != cty.String {
+					return nil, fmt.Errorf("handler schedule expression must be a string for handler %s", handlerName)
+				}
+
+				schedule = &config.ScheduleConfig{
+					Expression: expression.AsString(),
+				}
+			}
+
 			// Use global timeout as default for handler
 			timeout := terrableConfig.Timeout
 
@@ -200,6 +213,7 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 				ConfiguredSource: source,
 				Http:             http,
 				Sqs:              sqs,
+				Schedule:         schedule,
 				Timeout:          timeout,
 			})
 		}

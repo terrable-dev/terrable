@@ -8,11 +8,9 @@
     "args": [
       "offline",
       "-file",
-      "./samples/simple/simple-api.tf",
+      "./samples/integration/core/offline.tf",
       "-module",
-      "simple_api",
-      "-envfile",
-      "./samples/simple/.env.sample",
+      "offline_core",
     ],
   },
   {

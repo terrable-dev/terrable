@@ -89,6 +89,7 @@ func TestOfflineCoreRequests(t *testing.T) {
 		{method: http.MethodGet, path: "/echo-env-test", expectedStatus: http.StatusOK},
 		{method: http.MethodGet, path: "/collision1", expectedStatus: http.StatusOK},
 		{method: http.MethodPost, path: "/_sqs/SqsHandler", expectedStatus: http.StatusOK, body: "readiness"},
+		{method: http.MethodPost, path: "/_scheduled/ScheduledHandler", expectedStatus: http.StatusOK},
 	}, func() {
 		t.Run("echo GET request", func(t *testing.T) {
 			response := mustRequest(t, http.MethodGet, "/", nil, nil)
@@ -176,6 +177,18 @@ func TestOfflineCoreRequests(t *testing.T) {
 			response.assertJSONValue(t, "firstRecord.eventSourceARN", "arn:aws:sqs:eu-west-1:000000000000:SqsHandler")
 			response.assertJSONValue(t, "firstRecord.awsRegion", "eu-west-1")
 			response.assertJSONValue(t, "firstRecord.approximateReceiveCount", "1")
+		})
+
+		t.Run("builds an EventBridge-style event for scheduled handlers", func(t *testing.T) {
+			response := mustRequest(t, http.MethodPost, "/_scheduled/ScheduledHandler", nil, nil)
+
+			response.assertStatus(t, http.StatusOK)
+			response.assertHeader(t, "Content-Type", "application/json")
+			response.assertJSONValue(t, "source", "aws.events")
+			response.assertJSONValue(t, "detailType", "Scheduled Event")
+			response.assertJSONValue(t, "region", "eu-west-1")
+			response.assertJSONValue(t, "resources.0", "arn:aws:events:eu-west-1:000000000000:rule/ScheduledHandler-scheduled")
+			response.assertJSONStringMatchesRFC3339(t, "time")
 		})
 
 		t.Run("timeout request does not break later requests", func(t *testing.T) {
@@ -635,6 +648,24 @@ func (r httpResponse) assertJSONNumberAtLeast(t *testing.T, path string, minimum
 	}
 }
 
+func (r httpResponse) assertJSONStringMatchesRFC3339(t *testing.T, path string) {
+	t.Helper()
+
+	value, err := r.jsonValue(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stringValue, ok := value.(string)
+	if !ok {
+		t.Fatalf("expected %s to be a string, got %T", path, value)
+	}
+
+	if _, err := time.Parse(time.RFC3339, stringValue); err != nil {
+		t.Fatalf("expected %s to be RFC3339, got %q: %v", path, stringValue, err)
+	}
+}
+
 func (r httpResponse) jsonValue(path string) (interface{}, error) {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(r.body, &payload); err != nil {
@@ -643,17 +674,31 @@ func (r httpResponse) jsonValue(path string) (interface{}, error) {
 
 	var current interface{} = payload
 	for _, part := range strings.Split(path, ".") {
-		object, ok := current.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("path %s did not resolve to an object at %q", path, part)
+		if object, ok := current.(map[string]interface{}); ok {
+			next, ok := object[part]
+			if !ok {
+				return nil, fmt.Errorf("path %s missing key %q", path, part)
+			}
+
+			current = next
+			continue
 		}
 
-		next, ok := object[part]
-		if !ok {
-			return nil, fmt.Errorf("path %s missing key %q", path, part)
+		if array, ok := current.([]interface{}); ok {
+			index, err := strconv.Atoi(part)
+			if err != nil {
+				return nil, fmt.Errorf("path %s expected array index at %q", path, part)
+			}
+
+			if index < 0 || index >= len(array) {
+				return nil, fmt.Errorf("path %s index %d out of range", path, index)
+			}
+
+			current = array[index]
+			continue
 		}
 
-		current = next
+		return nil, fmt.Errorf("path %s could not be traversed at %q", path, part)
 	}
 
 	return current, nil

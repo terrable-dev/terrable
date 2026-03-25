@@ -51,6 +51,13 @@ module "offline_core" {
       }
     }
 
+    ScheduledHandler = {
+      source = "./src/Scheduled.ts"
+      schedule = {
+        expression = "rate(5 minutes)"
+      }
+    }
+
     CollisionOne = {
       source = "./src/Collision1/Collision.ts"
       http = {

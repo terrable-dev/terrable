@@ -14,7 +14,12 @@ type HandlerMapping struct {
 	ConfiguredSource string
 	Http             map[string]string
 	Sqs              map[string]interface{}
+	Schedule         *ScheduleConfig
 	Timeout          int
+}
+
+type ScheduleConfig struct {
+	Expression string
 }
 
 type APIGatewayConfig struct {
