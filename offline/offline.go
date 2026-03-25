@@ -9,11 +9,11 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/terrable-dev/terrable/config"
 	"github.com/terrable-dev/terrable/utils"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 )
 
 var DebugConfig config.DebugConfig
@@ -23,7 +23,7 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 	terrableConfig, err := utils.ParseTerraformFile(filePath, moduleName)
 
 	if err != nil {
-		log.Fatalf("error running offline: %s", err)
+		return fmt.Errorf("could not load Terrable configuration: %w", err)
 	}
 
 	err = validateConfig(terrableConfig)
@@ -31,16 +31,6 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 	if err != nil {
 		return fmt.Errorf(`error validating configuration: %s`, err.Error())
 	}
-
-	listener, activePort, err := getListener(port)
-
-	if err != nil {
-		return err
-	}
-
-	defer listener.Close()
-
-	printConfig(*terrableConfig, activePort)
 
 	// Read environment variables from the specified env file (if provided)
 	var fileEnvVars map[string]string
@@ -50,6 +40,20 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 			return fmt.Errorf("could not read env file: %w", err)
 		}
 	}
+
+	mergedEnvVars := mergeEnvMaps(terrableConfig.EnvironmentVariables, fileEnvVars)
+	handlerInstances, err := prepareHandlers(terrableConfig.Handlers, mergedEnvVars)
+	if err != nil {
+		return err
+	}
+
+	listener, activePort, err := getListener(port)
+
+	if err != nil {
+		return err
+	}
+
+	defer listener.Close()
 
 	r := mux.NewRouter()
 	registerCORSMiddleware(r, terrableConfig)
@@ -74,13 +78,14 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 	}
 	defer np.Close()
 
-	// Compile and register each handler before serving requests.
-	for _, handler := range terrableConfig.Handlers {
-		RegisterHandler(&HandlerInstance{
-			handlerConfig: handler,
-			envVars:       mergeEnvMaps(terrableConfig.EnvironmentVariables, mergeEnvMaps(terrableConfig.EnvironmentVariables, fileEnvVars)),
-		}, r, np)
+	// Register each prepared handler before serving requests.
+	for _, handlerInstance := range handlerInstances {
+		if err := RegisterHandler(handlerInstance, r, np); err != nil {
+			return err
+		}
 	}
+
+	printConfig(*terrableConfig, activePort)
 
 	server := &http.Server{
 		Handler: r,
@@ -91,6 +96,64 @@ func Run(filePath string, moduleName string, port string, debugConfig config.Deb
 	}
 
 	return nil
+}
+
+func prepareHandlers(handlers []config.HandlerMapping, envVars map[string]string) ([]*HandlerInstance, error) {
+	handlerInstances := make([]*HandlerInstance, len(handlers))
+	compileErrors := make([]error, len(handlers))
+
+	var wg sync.WaitGroup
+
+	for i, handler := range handlers {
+		handlerInstance := &HandlerInstance{
+			handlerConfig: handler,
+			envVars:       envVars,
+		}
+
+		handlerInstances[i] = handlerInstance
+
+		wg.Add(1)
+		go func(index int, instance *HandlerInstance) {
+			defer wg.Done()
+
+			_, err := instance.CompileHandler()
+			compileErrors[index] = err
+		}(i, handlerInstance)
+	}
+
+	wg.Wait()
+
+	if err := combineHandlerPreparationErrors(compileErrors); err != nil {
+		return nil, err
+	}
+
+	return handlerInstances, nil
+}
+
+func combineHandlerPreparationErrors(compileErrors []error) error {
+	var lines []string
+	errorCount := 0
+
+	for _, err := range compileErrors {
+		if err == nil {
+			continue
+		}
+
+		if errorCount == 0 {
+			lines = append(lines, "Terrable could not start because one or more handlers failed to prepare.", "")
+		} else {
+			lines = append(lines, "")
+		}
+
+		lines = append(lines, err.Error())
+		errorCount++
+	}
+
+	if errorCount == 0 {
+		return nil
+	}
+
+	return errors.New(strings.Join(lines, "\n"))
 }
 
 func validateConfig(config *config.TerrableConfig) error {

@@ -24,9 +24,15 @@ type HandlerOutput struct {
 	err           error
 }
 
-func RegisterHandler(handlerInstance *HandlerInstance, r *mux.Router, np *NodeProcess) {
-	inputFiles := handlerInstance.CompileHandler()
-	go handlerInstance.WatchForChanges(inputFiles)
+func RegisterHandler(handlerInstance *HandlerInstance, r *mux.Router, np *NodeProcess) error {
+	if handlerInstance.GetExecutionPath() == "" {
+		return fmt.Errorf("handler %q has not been prepared for execution", handlerInstance.handlerConfig.Name)
+	}
+
+	inputFiles := handlerInstance.GetInputFiles()
+	if len(inputFiles) > 0 {
+		go handlerInstance.WatchForChanges(inputFiles)
+	}
 
 	handleRequestFunc := func(w http.ResponseWriter, r *http.Request, code string) {
 		handlerExecutionMutex.Lock()
@@ -64,6 +70,8 @@ func RegisterHandler(handlerInstance *HandlerInstance, r *mux.Router, np *NodePr
 			handleRequestFunc(w, r, code)
 		}).Methods("POST")
 	}
+
+	return nil
 }
 
 func sendResult(startTime time.Time, w http.ResponseWriter, outputChannel chan HandlerOutput) {

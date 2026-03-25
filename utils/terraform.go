@@ -195,11 +195,12 @@ func ParseModuleConfiguration(filename string, moduleBlock *hcl.Block) (*config.
 			}
 
 			terrableConfig.Handlers = append(terrableConfig.Handlers, config.HandlerMapping{
-				Name:    handlerName,
-				Source:  absoluteSourceFilePath,
-				Http:    http,
-				Sqs:     sqs,
-				Timeout: timeout,
+				Name:             handlerName,
+				Source:           absoluteSourceFilePath,
+				ConfiguredSource: source,
+				Http:             http,
+				Sqs:              sqs,
+				Timeout:          timeout,
 			})
 		}
 	}
