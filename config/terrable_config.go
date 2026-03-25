@@ -9,11 +9,12 @@ type TerrableConfig struct {
 }
 
 type HandlerMapping struct {
-	Name    string
-	Source  string
-	Http    map[string]string
-	Sqs     map[string]interface{}
-	Timeout int
+	Name             string
+	Source           string
+	ConfiguredSource string
+	Http             map[string]string
+	Sqs              map[string]interface{}
+	Timeout          int
 }
 
 type APIGatewayConfig struct {

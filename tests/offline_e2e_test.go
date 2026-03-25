@@ -263,6 +263,76 @@ func TestOfflineRESTAPICORSRequests(t *testing.T) {
 	})
 }
 
+func TestOfflineStartupReportsMissingHandlerSource(t *testing.T) {
+	rootDir, err := repoRoot()
+	if err != nil {
+		t.Fatalf("failed to resolve repo root: %v", err)
+	}
+
+	output, err := runOfflineExpectFailure("samples/integration/invalid-handler/offline.tf", "invalid_handler", "")
+	if err != nil {
+		t.Fatalf("failed to run offline command: %v", err)
+	}
+
+	expectedResolvedPath := filepath.Join(rootDir, "samples", "integration", "invalid-handler", "src", "MissingHandler.ts")
+	expectedFragments := []string{
+		`Handler "MissingHandler" could not be loaded.`,
+		`Configured source:`,
+		`./src/MissingHandler.ts`,
+		`Resolved path:`,
+		expectedResolvedPath,
+		`Problem:`,
+		`no file exists at that path`,
+		`Check the handler's "source" setting and try again.`,
+	}
+
+	for _, fragment := range expectedFragments {
+		if !strings.Contains(output, fragment) {
+			t.Fatalf("expected offline output to contain %q, got:\n%s", fragment, output)
+		}
+	}
+
+	if strings.Contains(output, "Starting terrable local server...") {
+		t.Fatalf("expected offline startup to fail before the server banner, got:\n%s", output)
+	}
+}
+
+func TestOfflineStartupReportsAllFailingHandlers(t *testing.T) {
+	rootDir, err := repoRoot()
+	if err != nil {
+		t.Fatalf("failed to resolve repo root: %v", err)
+	}
+
+	output, err := runOfflineExpectFailure("samples/integration/invalid-handlers/offline.tf", "invalid_handlers", "")
+	if err != nil {
+		t.Fatalf("failed to run offline command: %v", err)
+	}
+
+	expectedFragments := []string{
+		"Terrable could not start because one or more handlers failed to prepare.",
+		`Handler "MissingHandler" could not be loaded.`,
+		`./src/MissingHandler.ts`,
+		filepath.Join(rootDir, "samples", "integration", "invalid-handlers", "src", "MissingHandler.ts"),
+		`Problem:`,
+		`no file exists at that path`,
+		`Handler "BrokenHandler" could not be compiled.`,
+		`./src/BrokenHandler.ts`,
+		filepath.Join(rootDir, "samples", "integration", "invalid-handlers", "src", "BrokenHandler.ts"),
+		`Build errors:`,
+		`Fix the handler code and try again.`,
+	}
+
+	for _, fragment := range expectedFragments {
+		if !strings.Contains(output, fragment) {
+			t.Fatalf("expected offline output to contain %q, got:\n%s", fragment, output)
+		}
+	}
+
+	if strings.Contains(output, "Starting terrable local server...") {
+		t.Fatalf("expected offline startup to fail before the server banner, got:\n%s", output)
+	}
+}
+
 type httpResponse struct {
 	statusCode int
 	headers    http.Header
@@ -376,6 +446,69 @@ func startTestServer(configPath, moduleName, envFilePath string, checks []readin
 	}
 
 	return server, nil
+}
+
+func runOfflineExpectFailure(configPath, moduleName, envFilePath string) (string, error) {
+	rootDir, err := repoRoot()
+	if err != nil {
+		return "", err
+	}
+
+	port, err := reservePort()
+	if err != nil {
+		return "", err
+	}
+
+	args := []string{
+		"offline",
+		"-f", filepath.Join(rootDir, configPath),
+		"-m", moduleName,
+		"-p", strconv.Itoa(port),
+		"--node-debug-port", "0",
+	}
+
+	if envFilePath != "" {
+		args = append(args, "-envfile", filepath.Join(rootDir, envFilePath))
+	}
+
+	command := exec.Command(builtBinary.path, args...)
+	command.Dir = rootDir
+
+	output, waitErr := runCommandWithTimeout(command, 10*time.Second)
+	if waitErr == nil {
+		return output, fmt.Errorf("offline command unexpectedly succeeded:\n%s", output)
+	}
+
+	var exitErr *exec.ExitError
+	if !errors.As(waitErr, &exitErr) {
+		return output, fmt.Errorf("offline command failed unexpectedly: %w\noutput:\n%s", waitErr, output)
+	}
+
+	return output, nil
+}
+
+func runCommandWithTimeout(command *exec.Cmd, timeout time.Duration) (string, error) {
+	outputBuffer := &safeBuffer{}
+	command.Stdout = outputBuffer
+	command.Stderr = outputBuffer
+
+	if err := command.Start(); err != nil {
+		return "", err
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- command.Wait()
+	}()
+
+	select {
+	case err := <-waitCh:
+		return outputBuffer.String(), err
+	case <-time.After(timeout):
+		_ = command.Process.Kill()
+		<-waitCh
+		return outputBuffer.String(), fmt.Errorf("command timed out after %s", timeout)
+	}
 }
 
 func (s *testServer) Stop() error {

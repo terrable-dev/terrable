@@ -2,6 +2,7 @@ package offline
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"strings"
@@ -140,5 +141,31 @@ func TestValidateConfig(t *testing.T) {
 				t.Errorf("validateConfig() error = %v, expectErr %v", err, tt.expectErr)
 			}
 		})
+	}
+}
+
+func TestCombineHandlerPreparationErrors(t *testing.T) {
+	firstErr := errors.New("first handler failed")
+	secondErr := errors.New("second handler failed")
+
+	err := combineHandlerPreparationErrors([]error{firstErr, nil, secondErr})
+	if err == nil {
+		t.Fatal("expected combined handler preparation error")
+	}
+
+	expectedFragments := []string{
+		"Terrable could not start because one or more handlers failed to prepare.",
+		"first handler failed",
+		"second handler failed",
+	}
+
+	for _, fragment := range expectedFragments {
+		if !strings.Contains(err.Error(), fragment) {
+			t.Fatalf("expected combined error to contain %q, got %q", fragment, err.Error())
+		}
+	}
+
+	if strings.Index(err.Error(), "first handler failed") > strings.Index(err.Error(), "second handler failed") {
+		t.Fatalf("expected combined errors to preserve handler order, got %q", err.Error())
 	}
 }
